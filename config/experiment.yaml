@@ -23,6 +23,7 @@ columns:
   template: "processed_EventTemplate"
   block_id: "Node_block_id"
   label: "Label"
+  dataset: "DatasetName"
 
 labels:
   normal_values: [0, "0", "Normal", "normal", "-"]
