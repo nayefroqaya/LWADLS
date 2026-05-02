@@ -10,7 +10,7 @@ import colorama
 import pandas as pd
 import torch
 
-from logdata_read import LogdataRead
+from load_datalog import LogdataRead
 from utils import utils
 import psutil
 

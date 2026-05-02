@@ -1242,4 +1242,3 @@ class LogdataRead:
             print(' save as csv file ....')
             # Save Processed Dataset Efficiently
             df.to_csv(All_dataset_path_as_csv, escapechar='\\', index=False)
-
