@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from data_loader import load_split_from_dataset_folders
+from tqdm import tqdm
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
 from metrics import (
@@ -29,7 +30,14 @@ def predict_model(model, dataset, batch_size, device):
     all_prob_normal = []
     all_prob_anomaly = []
 
-    for batch in loader:
+    progress_bar = tqdm(
+        loader,
+        desc="Predicting",
+        unit="batch",
+        dynamic_ncols=True,
+    )
+
+    for batch in progress_bar:
         labels = batch["labels"].cpu().numpy().tolist()
         batch = {k: v.to(device) for k, v in batch.items()}
 
@@ -44,8 +52,14 @@ def predict_model(model, dataset, batch_size, device):
         all_prob_normal.extend(probabilities[:, 0].cpu().numpy().tolist())
         all_prob_anomaly.extend(probabilities[:, 1].cpu().numpy().tolist())
 
-    return all_labels, all_predictions, all_prob_normal, all_prob_anomaly
+        progress_bar.set_postfix(
+            processed=len(all_predictions),
+            total=len(dataset),
+        )
 
+    print(f"\nPrediction completed: {len(all_predictions)} samples processed.")
+
+    return all_labels, all_predictions, all_prob_normal, all_prob_anomaly
 
 def build_prediction_output_dir(config, model_path, split, datasets):
     model_path = os.path.normpath(model_path)
