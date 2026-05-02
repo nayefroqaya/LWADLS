@@ -1,6 +1,6 @@
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""  # ⛔ Disable GPU completely
+#os.environ["CUDA_VISIBLE_DEVICES"] = ""  # ⛔ Disable GPU completely
 
 import warnings
 import subprocess
@@ -58,7 +58,7 @@ def main():
     # ---------------- Initialize classes ----------------
     logdata_read_obj = LogdataRead()
     utilities_obj = utils()
-
+    '''
     # ---------------- Data as CSV ----------------
     logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
     print(f"{GREEN}Reading the file was done successfully{RESET}")
@@ -90,6 +90,7 @@ def main():
     final_train_with_test_with_val = utilities_obj.processing_data_portion(train_df, val_df, test_df)
 
     exit()
+    '''
 
     # ---------------- Run experiments ----------------
 
