@@ -4,9 +4,10 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from tqdm import tqdm
+from sklearn.metrics import classification_report, confusion_matrix
 
 from data_loader import load_split_from_dataset_folders
-from tqdm import tqdm
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
 from metrics import (
@@ -61,6 +62,7 @@ def predict_model(model, dataset, batch_size, device):
 
     return all_labels, all_predictions, all_prob_normal, all_prob_anomaly
 
+
 def build_prediction_output_dir(config, model_path, split, datasets):
     model_path = os.path.normpath(model_path)
 
@@ -75,6 +77,58 @@ def build_prediction_output_dir(config, model_path, split, datasets):
     )
 
     return output_dir
+
+
+def save_text_report(
+    file_path,
+    metrics,
+    y_true,
+    y_pred,
+    per_dataset_df,
+    datasets,
+    model_path,
+    split,
+):
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
+        f.write("ANOMALY DETECTION EVALUATION REPORT\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write(f"Model path: {model_path}\n")
+        f.write(f"Split: {split}\n")
+        f.write(f"Datasets: {datasets}\n\n")
+
+        f.write("Overall Metrics\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Precision: {metrics['precision']:.4f}\n")
+        f.write(f"Recall:    {metrics['recall']:.4f}\n")
+        f.write(f"F1-score:  {metrics['f1']:.4f}\n")
+        f.write(f"Accuracy:  {metrics['accuracy']:.4f}\n\n")
+
+        f.write("Classification Report\n")
+        f.write("-" * 40 + "\n")
+        report_text = classification_report(
+            y_true,
+            y_pred,
+            target_names=["Normal", "Anomaly"],
+            zero_division=0,
+        )
+        f.write(report_text + "\n")
+
+        f.write("Confusion Matrix\n")
+        f.write("-" * 40 + "\n")
+        cm = confusion_matrix(y_true, y_pred)
+        f.write(str(cm) + "\n\n")
+
+        if per_dataset_df is not None:
+            f.write("Per-Dataset Metrics\n")
+            f.write("-" * 40 + "\n")
+            f.write(per_dataset_df.to_string(index=False))
+            f.write("\n\n")
+
+        f.write("=" * 80 + "\n")
+
+    print(f"\nSaved readable report: {file_path}")
 
 
 def run_prediction(config_path, model_path, split, datasets):
@@ -153,6 +207,7 @@ def run_prediction(config_path, model_path, split, datasets):
     metrics_path = os.path.join(output_dir, "metrics.csv")
     classification_report_path = os.path.join(output_dir, "classification_report.csv")
     per_dataset_metrics_path = os.path.join(output_dir, "per_dataset_metrics.csv")
+    text_report_path = os.path.join(output_dir, "evaluation_report.txt")
     per_dataset_report_dir = os.path.join(
         output_dir,
         "per_dataset_classification_reports",
@@ -168,6 +223,17 @@ def run_prediction(config_path, model_path, split, datasets):
 
     per_metrics_df = per_dataset_metrics(result_df)
     per_metrics_df.to_csv(per_dataset_metrics_path, index=False)
+
+    save_text_report(
+        file_path=text_report_path,
+        metrics=metrics,
+        y_true=y_true,
+        y_pred=y_pred,
+        per_dataset_df=per_metrics_df,
+        datasets=datasets,
+        model_path=model_path,
+        split=split,
+    )
 
     per_reports = per_dataset_classification_reports(result_df)
 
@@ -188,6 +254,7 @@ def run_prediction(config_path, model_path, split, datasets):
     print(f"Predictions:                   {predictions_path}")
     print(f"Overall metrics:               {metrics_path}")
     print(f"Overall classification report: {classification_report_path}")
+    print(f"Readable text report:          {text_report_path}")
     print(f"Per-dataset metrics:           {per_dataset_metrics_path}")
     print(f"Per-dataset reports folder:    {per_dataset_report_dir}")
 
