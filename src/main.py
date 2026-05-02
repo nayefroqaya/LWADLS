@@ -94,16 +94,16 @@ def main():
 
     # ---------------- Run experiments ----------------
 
-    # 1. Optional MLM
+    print('# 1. Optional MLM')
     run_command([sys.executable, "run_mlm.py", "--config", CONFIG_PATH])
 
-    # 2. Teacher
+    print('# 2. Teacher ')
     run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "teacher"])
 
-    # 3. Student baseline
+    print('# 3. Student baseline')
     run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "student"])
 
-    # 4. Distilled student
+    print('# 4. Distilled student')
     run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "distill"])
 
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
