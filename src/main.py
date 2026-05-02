@@ -1,5 +1,6 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ""   # ⛔ Disable GPU completely
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""  # ⛔ Disable GPU completely
 
 import warnings
 import subprocess
@@ -12,8 +13,6 @@ import torch
 from logdata_read import LogdataRead
 from utils import utils
 import psutil
-import platform
-
 
 # ====================== Setup ======================
 warnings.filterwarnings('ignore')
@@ -32,7 +31,6 @@ def run_command(command):
 
 # ====================== Main ======================
 def main():
-
     # ---------------- Device check ------------------
     if torch.cuda.is_available():
         print(f"{GREEN}GPU detected. Using GPU for encoding.{RESET}")
@@ -48,7 +46,7 @@ def main():
     # ---------------- Project configuration ----------------
     DATASET = 'BGL'
     DATASETS_FOLDER = 'datasets'
-    Round='1'
+    Round = '1'
     mode = 'M'  # M multi classifier - S single classifier
     Mix_or_stable = '0'  # 0 Full stable subset  / 1 mix subset
 
@@ -62,10 +60,7 @@ def main():
     utilities_obj = utils()
 
     # ---------------- Data as CSV ----------------
-    logdata_read_obj.read_original_data_log_from_log_to_csv(
-        DATASET,
-        ALL_DATASET_CSV_PATH
-    )
+    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
 
     print(f"{GREEN}Reading the file was done successfully{RESET}")
 
@@ -95,46 +90,21 @@ def main():
 
     final_train_with_test_with_val = utilities_obj.processing_data_portion(train_df, val_df, test_df)
 
+    exit()
 
     # ---------------- Run experiments ----------------
 
     # 1. Optional MLM
-    run_command([
-        sys.executable,
-        "run_mlm.py",
-        "--config",
-        CONFIG_PATH
-    ])
+    run_command([sys.executable, "run_mlm.py", "--config", CONFIG_PATH])
 
     # 2. Teacher
-    run_command([
-        sys.executable,
-        "run_experiment.py",
-        "--config",
-        CONFIG_PATH,
-        "--mode",
-        "teacher"
-    ])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "teacher"])
 
     # 3. Student baseline
-    run_command([
-        sys.executable,
-        "run_experiment.py",
-        "--config",
-        CONFIG_PATH,
-        "--mode",
-        "student"
-    ])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "student"])
 
     # 4. Distilled student
-    run_command([
-        sys.executable,
-        "run_experiment.py",
-        "--config",
-        CONFIG_PATH,
-        "--mode",
-        "distill"
-    ])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "distill"])
 
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
 
