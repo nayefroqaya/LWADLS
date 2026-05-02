@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import pandas as pd
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import AutoModelForMaskedLM, DataCollatorForLanguageModeling
 
@@ -51,7 +52,13 @@ def run_mlm_pretraining(
         model.train()
         total_loss = 0.0
 
-        for batch in loader:
+        progress_bar = tqdm(
+            loader,
+            desc=f"MLM epoch {epoch + 1}/{epochs}",
+            unit="batch",
+        )
+
+        for batch in progress_bar:
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
@@ -63,7 +70,13 @@ def run_mlm_pretraining(
 
             total_loss += loss.item()
 
-        print(f"MLM epoch {epoch + 1}/{epochs} | loss={total_loss / len(loader):.4f}")
+            progress_bar.set_postfix(
+                {
+                    "loss": f"{loss.item():.4f}",
+                }
+            )
+
+        print(f"MLM epoch {epoch + 1}/{epochs} | avg_loss={total_loss / len(loader):.4f}")
 
     total_time = time.time() - start_time
 
@@ -71,11 +84,13 @@ def run_mlm_pretraining(
     tokenizer.save_pretrained(output_dir)
 
     pd.DataFrame(
-        [{
-            "mlm_time_seconds": total_time,
-            "mlm_epochs": epochs,
-            "mlm_probability": mlm_probability,
-        }]
+        [
+            {
+                "mlm_time_seconds": total_time,
+                "mlm_epochs": epochs,
+                "mlm_probability": mlm_probability,
+            }
+        ]
     ).to_csv(os.path.join(output_dir, "mlm_summary.csv"), index=False)
 
     print(f"\nMLM saved to: {output_dir}")

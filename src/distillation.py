@@ -3,6 +3,7 @@ import time
 import torch
 import torch.nn.functional as F
 import pandas as pd
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from trainer import evaluate_classifier
@@ -50,7 +51,13 @@ def train_distilled_student(
         total_ce = 0.0
         total_kd = 0.0
 
-        for batch in train_loader:
+        progress_bar = tqdm(
+            train_loader,
+            desc=f"Distillation epoch {epoch + 1}/{epochs}",
+            unit="batch",
+        )
+
+        for batch in progress_bar:
             batch = {k: v.to(device) for k, v in batch.items()}
             labels = batch["labels"]
 
@@ -83,6 +90,14 @@ def train_distilled_student(
             total_ce += loss_ce.item()
             total_kd += loss_kd.item()
 
+            progress_bar.set_postfix(
+                {
+                    "loss": f"{loss.item():.4f}",
+                    "ce": f"{loss_ce.item():.4f}",
+                    "kd": f"{loss_kd.item():.4f}",
+                }
+            )
+
         val_metrics, _ = evaluate_classifier(
             model=student,
             dataset=val_dataset,
@@ -109,10 +124,12 @@ def train_distilled_student(
     total_time = time.time() - start_time
 
     pd.DataFrame(
-        [{
-            "best_val_f1": best_f1,
-            "distillation_time_seconds": total_time,
-        }]
+        [
+            {
+                "best_val_f1": best_f1,
+                "distillation_time_seconds": total_time,
+            }
+        ]
     ).to_csv(os.path.join(output_dir, "distillation_summary.csv"), index=False)
 
     print(f"\nDistillation finished in {total_time:.2f} seconds")

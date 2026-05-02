@@ -1,4 +1,5 @@
 import pandas as pd
+from tqdm import tqdm
 
 
 def normalize_label(value, normal_values, anomaly_values) -> int:
@@ -32,11 +33,15 @@ def aggregate_by_block(
 
     sequences = []
 
-    group_cols = ["DatasetName", block_col]
+    grouped = df.groupby(["DatasetName", block_col], sort=False)
+    total_groups = grouped.ngroups
 
-    grouped = df.groupby(group_cols, sort=False)
-
-    for (dataset_name, block_id), group in grouped:
+    for (dataset_name, block_id), group in tqdm(
+        grouped,
+        total=total_groups,
+        desc="Aggregating sequences",
+        unit="block",
+    ):
         group = group.sort_values(timestamp_col)
 
         templates = group[template_col].tolist()

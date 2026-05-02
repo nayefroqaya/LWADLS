@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import pandas as pd
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 
@@ -46,7 +47,13 @@ def train_classifier(
         model.train()
         total_loss = 0.0
 
-        for batch in train_loader:
+        progress_bar = tqdm(
+            train_loader,
+            desc=f"Training epoch {epoch + 1}/{epochs}",
+            unit="batch",
+        )
+
+        for batch in progress_bar:
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
@@ -58,6 +65,12 @@ def train_classifier(
             optimizer.zero_grad()
 
             total_loss += loss.item()
+
+            progress_bar.set_postfix(
+                {
+                    "loss": f"{loss.item():.4f}",
+                }
+            )
 
         avg_loss = total_loss / max(len(train_loader), 1)
 
@@ -85,10 +98,12 @@ def train_classifier(
     total_time = time.time() - start_time
 
     pd.DataFrame(
-        [{
-            "best_val_f1": best_f1,
-            "training_time_seconds": total_time,
-        }]
+        [
+            {
+                "best_val_f1": best_f1,
+                "training_time_seconds": total_time,
+            }
+        ]
     ).to_csv(os.path.join(output_dir, "training_summary.csv"), index=False)
 
     print(f"\nTraining finished in {total_time:.2f} seconds")
@@ -114,7 +129,13 @@ def evaluate_classifier(
     all_labels = []
     all_predictions = []
 
-    for batch in loader:
+    progress_bar = tqdm(
+        loader,
+        desc=title,
+        unit="batch",
+    )
+
+    for batch in progress_bar:
         labels = batch["labels"].cpu().numpy().tolist()
 
         batch = {k: v.to(device) for k, v in batch.items()}
