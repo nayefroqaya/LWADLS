@@ -32,7 +32,7 @@ def aggregate_by_block(
 
     sequences = []
 
-    group_cols = ["DatasetName", block_col]
+    group_cols = ["datasets", block_col]
 
     grouped = df.groupby(group_cols, sort=False)
 
@@ -46,7 +46,7 @@ def aggregate_by_block(
 
         sequences.append(
             {
-                "DatasetName": dataset_name,
+                "datasets": dataset_name,
                 "Node_block_id": block_id,
                 "text": sequence_text,
                 "label": sequence_label,
@@ -63,5 +63,5 @@ def print_sequence_stats(name: str, df: pd.DataFrame):
     print("Samples:", len(df))
     print("Normal:", int((df["label"] == 0).sum()))
     print("Anomaly:", int((df["label"] == 1).sum()))
-    print("Datasets:", df["DatasetName"].value_counts().to_dict())
+    print("Datasets:", df["datasets"].value_counts().to_dict())
     print("Avg sequence length:", round(df["sequence_length"].mean(), 2))
