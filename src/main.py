@@ -53,7 +53,7 @@ def main():
     ALL_DATASET_LOG_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.LOG'
     ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
 
-    CONFIG_PATH = "configs/experiment.yaml"
+    CONFIG_PATH = "config/experiment.yaml"
 
     # ---------------- Initialize classes ----------------
     logdata_read_obj = LogdataRead()
@@ -95,16 +95,16 @@ def main():
     # ---------------- Run experiments ----------------
 
     # 1. Optional MLM
-    run_command([sys.executable, "run_mlm.py", "--configs", CONFIG_PATH])
+    run_command([sys.executable, "run_mlm.py", "--config", CONFIG_PATH])
 
     # 2. Teacher
-    run_command([sys.executable, "run_experiment.py", "--configs", CONFIG_PATH, "--mode", "teacher"])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "teacher"])
 
     # 3. Student baseline
-    run_command([sys.executable, "run_experiment.py", "--configs", CONFIG_PATH, "--mode", "student"])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "student"])
 
     # 4. Distilled student
-    run_command([sys.executable, "run_experiment.py", "--configs", CONFIG_PATH, "--mode", "distill"])
+    run_command([sys.executable, "run_experiment.py", "--config", CONFIG_PATH, "--mode", "distill"])
 
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
 

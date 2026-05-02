@@ -214,7 +214,7 @@ def run_distillation(config, device):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--configs", required=True)
+    parser.add_argument("--config", required=True)
     parser.add_argument(
         "--mode",
         required=True,
