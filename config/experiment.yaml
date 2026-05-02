@@ -1,15 +1,13 @@
-data_root: "./datasets"
 data_dir: "../datasets"
-output_dir: "./outputs"
+output_dir: "../outputs"
 
-train_datasets: ["HDFS", "BGL"]
-val_datasets:   ["HDFS", "BGL"]
-test_datasets:  ["Spirit", "TH_a", "TH_b"]
+#train_datasets: ["HDFS", "BGL"]
+#val_datasets: ["HDFS", "BGL"]
+#test_datasets: ["Spirit", "TH_a", "TH_b"]
 
-file_names:
-  train: "train.pkl"
-  val:   "val.pkl"
-  test:  "test.pkl"
+train_datasets: ["BGL"]
+val_datasets: ["BGL"]
+test_datasets: ["BGL"]
 
 split_files:
   train: "train.pkl"

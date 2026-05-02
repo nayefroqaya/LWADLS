@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+from pathlib import Path
+import pandas as pd
 
 
 REQUIRED_COLUMNS = [
@@ -14,34 +16,46 @@ REQUIRED_COLUMNS = [
     "Label",
 ]
 
+def load_split_from_datasets(config, split_name):
+    data_dir = Path(config.get("data_dir", config.get("data_root")))
+    split_files = config.get("split_files", config.get("file_names"))
 
-def load_split_file(data_dir: str, filename: str, split: str) -> pd.DataFrame:
-    path = os.path.join(data_dir, filename)
+    dataset_key = f"{split_name}_datasets"
+    dataset_names = config.get(dataset_key, [])
 
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
+    if not dataset_names:
+        raise ValueError(f"No datasets defined for '{dataset_key}' in config.")
 
-    df = pd.read_pickle(path)
+    split_file = split_files[split_name]
 
-    missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-    if missing_cols:
-        raise ValueError(f"{path} is missing columns: {missing_cols}")
+    all_dfs = []
 
-    df = df[REQUIRED_COLUMNS].copy()
-    df["Split"] = split
+    for dataset_name in dataset_names:
+        file_path = data_dir / dataset_name / split_file
 
-    if "DatasetName" not in df.columns:
-        df["DatasetName"] = "unknown"
+        if not file_path.exists():
+            raise FileNotFoundError(f"Missing file: {file_path}")
 
-    return df
+        if file_path.suffix == ".pkl":
+            df = pd.read_pickle(file_path)
+        elif file_path.suffix == ".csv":
+            df = pd.read_csv(file_path)
+        elif file_path.suffix == ".json":
+            df = pd.read_json(file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {file_path}")
+
+        df["dataset_name"] = dataset_name
+        df["split"] = split_name
+
+        all_dfs.append(df)
+
+    return pd.concat(all_dfs, ignore_index=True)
 
 
 def load_all_splits(config):
-    data_dir = config["data_dir"]
-    split_files = config["split_files"]
-
-    train_df = load_split_file(data_dir, split_files["train"], "train")
-    val_df = load_split_file(data_dir, split_files["val"], "val")
-    test_df = load_split_file(data_dir, split_files["test"], "test")
+    train_df = load_split_from_datasets(config, "train")
+    val_df = load_split_from_datasets(config, "val")
+    test_df = load_split_from_datasets(config, "test")
 
     return train_df, val_df, test_df
