@@ -11,6 +11,11 @@ file_names:
   val:   "val.pkl"
   test:  "test.pkl"
 
+split_files:
+  train: "train.pkl"
+  val: "val.pkl"
+  test: "test.pkl"
+
 columns:
   timestamp: "Timestamp"
   template: "processed_EventTemplate"
