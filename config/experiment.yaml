@@ -1,18 +1,22 @@
-data_dir: "../datasets"
 output_dir: "../outputs"
+data_dir: "../datasets"
 
-#train_datasets: ["HDFS", "BGL"]
-#val_datasets: ["HDFS", "BGL"]
-#test_datasets: ["Spirit", "TH_a", "TH_b"]
+dataset_path_template: "{dataset}/1_{dataset}_Splitted_Datasets"
 
 train_datasets: ["BGL"]
 val_datasets: ["BGL"]
 test_datasets: ["BGL"]
 
+
+#train_datasets: ["BGL", "HDFS"]
+#val_datasets: ["BGL", "HDFS"]
+#test_datasets: ["BGL"]
+
+
 split_files:
-  train: "train.pkl"
-  val: "val.pkl"
-  test: "test.pkl"
+  train: "train_df.pkl"
+  val: "val_df.pkl"
+  test: "test_df.pkl"
 
 columns:
   timestamp: "Timestamp"
