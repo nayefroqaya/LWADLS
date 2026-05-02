@@ -53,7 +53,7 @@ def main():
     ALL_DATASET_LOG_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.LOG'
     ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
 
-    CONFIG_PATH = "config/experiment.yaml"
+    CONFIG_PATH =  "../config/experiment.yaml"
 
     # ---------------- Initialize classes ----------------
     logdata_read_obj = LogdataRead()
