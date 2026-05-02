@@ -1,4 +1,5 @@
 data_root: "./datasets"
+data_dir: "../datasets"
 output_dir: "./outputs"
 
 train_datasets: ["HDFS", "BGL"]
