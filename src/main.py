@@ -266,7 +266,7 @@ def main():
     ANOMALY_THRESHOLD = float(prediction_stage.get("anomaly_threshold", 0.5))
 
 
-
+    '''
     # ---------------- Initialize classes ----------------
     DATASET='TH_1G'
     DATASETS_FOLDER='datasets'
@@ -287,7 +287,7 @@ def main():
                                                                                   Mix_or_stable)
     exit()
     # ---------------- Process normal data ----------------
-
+    '''
 
 
 
