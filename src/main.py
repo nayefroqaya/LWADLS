@@ -131,6 +131,90 @@ def run_prediction_for_saved_model(
     return metrics_df, report_df, per_dataset_df
 
 
+def save_final_comparison_report(
+    output_dir,
+    train_datasets,
+    val_datasets,
+    internal_test_datasets,
+    predict_datasets,
+    summary_rows,
+):
+    summary_df = pd.DataFrame(summary_rows)
+
+    summary_csv_path = os.path.join(
+        output_dir,
+        f"final_prediction_summary__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}.csv",
+    )
+
+    summary_txt_path = os.path.join(
+        output_dir,
+        f"final_comparison__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}.txt",
+    )
+
+    summary_df.to_csv(summary_csv_path, index=False)
+
+    best_model = max(summary_rows, key=lambda x: float(x["f1"]))
+
+    with open(summary_txt_path, "w", encoding="utf-8") as f:
+        f.write("=" * 100 + "\n")
+        f.write("MODEL COMPARISON REPORT\n")
+        f.write("=" * 100 + "\n\n")
+
+        f.write("Experiment Setup\n")
+        f.write("-" * 60 + "\n")
+        f.write(f"Train datasets:         {train_datasets}\n")
+        f.write(f"Validation datasets:    {val_datasets}\n")
+        f.write(f"Internal test datasets: {internal_test_datasets}\n")
+        f.write(f"Prediction datasets:    {predict_datasets}\n\n")
+
+        f.write("Metric Meaning\n")
+        f.write("-" * 60 + "\n")
+        f.write("Precision, Recall, and F1 below are binary metrics for Class 1 = Anomaly.\n")
+        f.write("Class 0 = Normal\n")
+        f.write("Class 1 = Anomaly\n\n")
+
+        f.write("Model Comparison\n")
+        f.write("-" * 100 + "\n")
+        f.write(
+            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} {'F1-score':>12s} {'Accuracy':>12s}\n"
+        )
+        f.write("-" * 100 + "\n")
+
+        for row in summary_rows:
+            f.write(
+                f"{row['model']:25s} "
+                f"{float(row['precision']):12.6f} "
+                f"{float(row['recall']):12.6f} "
+                f"{float(row['f1']):12.6f} "
+                f"{float(row['accuracy']):12.6f}\n"
+            )
+
+        f.write("\n")
+        f.write("Best Model by F1-score\n")
+        f.write("-" * 60 + "\n")
+        f.write(
+            f"{best_model['model']} with F1-score = {float(best_model['f1']):.6f}\n\n"
+        )
+
+        f.write("Notes\n")
+        f.write("-" * 60 + "\n")
+        f.write(
+            "For cross-dataset experiments, low F1 indicates domain shift/generalization difficulty.\n"
+        )
+        f.write(
+            "Compare student_distilled against student_no_distill to evaluate the effect of distillation.\n"
+        )
+
+    print(f"\n{GREEN}Saved final CSV summary:{RESET}")
+    print(summary_csv_path)
+
+    print(f"\n{GREEN}Saved final TXT comparison report:{RESET}")
+    print(summary_txt_path)
+
+    print(f"\n{GREEN}Final model comparison:{RESET}")
+    print(summary_df)
+
+
 def main():
     if torch.cuda.is_available():
         print(f"{GREEN}GPU detected. Using GPU.{RESET}")
@@ -141,27 +225,6 @@ def main():
     pd.set_option("display.max_rows", None)
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
-
-    '''
-
-    # ---------------- Initialize classes ----------------
-    logdata_read_obj = LogdataRead()
-    utilities_obj = utils()
-
-    # ---------------- Data as CSV ----------------
-    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
-    print(f"{GREEN}Reading the file was done successfully{RESET}")
-
-    # ---------------- Dataset Splitting ----------------
-    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
-    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
-                                                                                  Mix_or_stable)
-    # exit()
-    # ---------------- Process normal data ----------------
-    '''
-
-
-
 
     CONFIG_PATH = "../config/experiment.yaml"
     config = load_yaml_config(CONFIG_PATH)
@@ -180,11 +243,29 @@ def main():
     RUN_TRAINING = True
     RUN_PREDICTION = True
 
-    # To run only prediction later, use:
+    # For prediction only after training:
     # RUN_MLM = False
     # RUN_TRAINING = False
     # RUN_PREDICTION = True
 
+    '''
+
+    # ---------------- Initialize classes ----------------
+    logdata_read_obj = LogdataRead()
+    utilities_obj = utils()
+
+    # ---------------- Data as CSV ----------------
+    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
+    print(f"{GREEN}Reading the file was done successfully{RESET}")
+
+    # ---------------- Dataset Splitting ----------------
+    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
+    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
+                                                                                  Mix_or_stable)
+    # exit()
+    # ---------------- Process normal data ----------------
+    '''
+    '''
     logdata_read_obj = LogdataRead()
     utilities_obj = utils()
 
@@ -239,7 +320,8 @@ def main():
                 "distill",
             ]
         )
-
+    '''
+    #------------------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
@@ -278,30 +360,24 @@ def main():
                         "model": model_mode,
                         "train_datasets": clean_name(TRAIN_DATASETS),
                         "val_datasets": clean_name(VAL_DATASETS),
+                        "internal_test_datasets": clean_name(INTERNAL_TEST_DATASETS),
                         "prediction_datasets": clean_name(PREDICT_DATASETS),
-                        "precision": row["precision"],
-                        "recall": row["recall"],
-                        "f1": row["f1"],
-                        "accuracy": row["accuracy"],
+                        "precision": float(row["precision"]),
+                        "recall": float(row["recall"]),
+                        "f1": float(row["f1"]),
+                        "accuracy": float(row["accuracy"]),
                     }
                 )
 
         if summary_rows:
-            summary_df = pd.DataFrame(summary_rows)
-
-            summary_path = os.path.join(
-                OUTPUT_DIR,
-                f"final_prediction_summary__train-{clean_name(TRAIN_DATASETS)}__predict-{clean_name(PREDICT_DATASETS)}.csv",
+            save_final_comparison_report(
+                output_dir=OUTPUT_DIR,
+                train_datasets=TRAIN_DATASETS,
+                val_datasets=VAL_DATASETS,
+                internal_test_datasets=INTERNAL_TEST_DATASETS,
+                predict_datasets=PREDICT_DATASETS,
+                summary_rows=summary_rows,
             )
-
-            summary_df.to_csv(summary_path, index=False)
-
-            print(f"\n{GREEN}Final model comparison{RESET}")
-            print("=" * 80)
-            print(summary_df)
-
-            print(f"\nSaved final summary to:")
-            print(summary_path)
 
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
 
