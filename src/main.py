@@ -173,6 +173,7 @@ def main():
     ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
 
     CONFIG_PATH =  "../config/experiment.yaml"
+    '''
 
     # ---------------- Initialize classes ----------------
     logdata_read_obj = LogdataRead()
@@ -188,27 +189,8 @@ def main():
                                                                                   Mix_or_stable)
     # exit()
     # ---------------- Process normal data ----------------
+    '''
 
-    if Mix_or_stable == '0' and DATASET == 'S_BGL':  # Stable
-        # Create folder to save splits
-        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
-        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_'Stable'_Splitted_Datasets")
-    elif Mix_or_stable == '1' and DATASET == 'S_BGL':  # Mix
-        # Create folder to save splits
-        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
-        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_'Mix'_Splitted_Datasets")
-    else:
-
-        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
-        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_Splitted_Datasets")
-
-    train_df = pd.read_pickle(os.path.join(save_path, "train_df.pkl"))
-    val_df = pd.read_pickle(os.path.join(save_path, "val_df.pkl"))
-    test_df = pd.read_pickle(os.path.join(save_path, "test_df.pkl"))
-
-    final_train_with_test_with_val = utilities_obj.processing_data_portion(train_df, val_df, test_df)
-
-    #exit()
 
 
     # ---------------- Training stages ----------------
