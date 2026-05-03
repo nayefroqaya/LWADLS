@@ -202,7 +202,7 @@ def save_final_comparison_report(
             "For cross-dataset experiments, low F1 indicates domain shift/generalization difficulty.\n"
         )
         f.write(
-            "Compare student_distilled against student_no_distill to evaluate the effect of distillation.\n"
+            "Compare distill against student to evaluate the effect of distillation.\n"
         )
 
     print(f"\n{GREEN}Saved final CSV summary:{RESET}")
@@ -226,6 +226,25 @@ def main():
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
 
+    '''
+
+    # ---------------- Initialize classes ----------------
+    logdata_read_obj = LogdataRead()
+    utilities_obj = utils()
+
+    # ---------------- Data as CSV ----------------
+    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
+    print(f"{GREEN}Reading the file was done successfully{RESET}")
+
+    # ---------------- Dataset Splitting ----------------
+    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
+    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
+                                                                                  Mix_or_stable)
+    # exit()
+    # ---------------- Process normal data ----------------
+    '''
+
+
     CONFIG_PATH = "../config/experiment.yaml"
     config = load_yaml_config(CONFIG_PATH)
 
@@ -248,24 +267,6 @@ def main():
     # RUN_TRAINING = False
     # RUN_PREDICTION = True
 
-    '''
-
-    # ---------------- Initialize classes ----------------
-    logdata_read_obj = LogdataRead()
-    utilities_obj = utils()
-
-    # ---------------- Data as CSV ----------------
-    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
-    print(f"{GREEN}Reading the file was done successfully{RESET}")
-
-    # ---------------- Dataset Splitting ----------------
-    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
-    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
-                                                                                  Mix_or_stable)
-    # exit()
-    # ---------------- Process normal data ----------------
-    '''
-    '''
     logdata_read_obj = LogdataRead()
     utilities_obj = utils()
 
@@ -279,7 +280,7 @@ def main():
     print("-" * 60)
     print(f"Prediction split:       {PREDICT_SPLIT}")
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
-
+    '''
     if RUN_TRAINING:
         if RUN_MLM:
             print("\n# 1. MLM pretraining")
@@ -321,14 +322,14 @@ def main():
             ]
         )
     '''
-    #------------------------
+    #-----------------------------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
         model_modes = [
             "teacher",
-            "student_no_distill",
-            "student_distilled",
+            "student",
+            "distill",
         ]
 
         summary_rows = []
