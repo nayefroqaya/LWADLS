@@ -280,7 +280,7 @@ def main():
     print("-" * 60)
     print(f"Prediction split:       {PREDICT_SPLIT}")
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
-    '''
+
     if RUN_TRAINING:
         if RUN_MLM:
             print("\n# 1. MLM pretraining")
@@ -321,7 +321,7 @@ def main():
                 "distill",
             ]
         )
-    '''
+
     #-----------------------------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
