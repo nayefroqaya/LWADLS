@@ -233,6 +233,14 @@ def save_final_comparison_report(
 
 
 def main():
+    warnings.filterwarnings('ignore')
+    colorama.init()
+
+    GREEN = colorama.Fore.GREEN
+    GRAY = colorama.Fore.LIGHTBLACK_EX
+    RESET = colorama.Fore.RESET
+    YELLOW = colorama.Fore.YELLOW
+
     if torch.cuda.is_available():
         print(f"{GREEN}GPU detected. Using GPU.{RESET}")
     else:
@@ -257,9 +265,15 @@ def main():
     PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
     ANOMALY_THRESHOLD = float(prediction_stage.get("anomaly_threshold", 0.5))
 
-    '''
+
 
     # ---------------- Initialize classes ----------------
+    DATASET='TH_1G'
+    DATASETS_FOLDER='datasets'
+    Round='1'
+    Mix_or_stable='0'
+    ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
+
     logdata_read_obj = LogdataRead()
     utilities_obj = utils()
 
@@ -271,9 +285,9 @@ def main():
     print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
     train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
                                                                                   Mix_or_stable)
-    # exit()
+    exit()
     # ---------------- Process normal data ----------------
-    '''
+
 
 
 
@@ -301,7 +315,7 @@ def main():
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
     print(f"Anomaly threshold:      {ANOMALY_THRESHOLD}")
 
-    '''
+
 
     if RUN_TRAINING:
         if RUN_MLM:
@@ -343,7 +357,8 @@ def main():
                 "distill",
             ]
         )
-    '''
+
+
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
