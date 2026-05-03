@@ -7,13 +7,11 @@ from dataset import LogSequenceDataset
 from models import get_teacher_model, get_student_model, get_tokenizer
 from trainer import train_classifier, evaluate_classifier
 from distillation import train_distilled_student
-from metrics import print_metrics
 from utils import (
     load_config,
     get_device,
     set_seed,
     make_output_dir,
-    save_model_and_tokenizer,
 )
 
 
@@ -85,14 +83,10 @@ def main(config_path, mode):
 
     output_dir = make_output_dir(config, mode)
 
-    # =========================================================
-    # 1. Teacher training
-    # =========================================================
     if mode == "teacher":
         print("\nTraining teacher model...")
 
         teacher_model_name = config["model"]["teacher_name"]
-
         tokenizer = get_tokenizer(teacher_model_name)
 
         train_dataset, val_dataset, test_dataset = build_datasets(
@@ -118,25 +112,19 @@ def main(config_path, mode):
         best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
 
         print("\nEvaluating teacher on internal test set...")
-        y_true, y_pred = evaluate_classifier(
+        evaluate_classifier(
             model=best_model,
             dataset=test_dataset,
             batch_size=config["model"]["batch_size"],
             device=device,
             title="Teacher internal test",
-            print_output=False,
+            print_output=True,
         )
 
-        print_metrics("Teacher Test Metrics", y_true, y_pred)
-
-    # =========================================================
-    # 2. Student without distillation
-    # =========================================================
     elif mode == "student":
         print("\nTraining student without distillation...")
 
         student_model_name = config["model"]["student_name"]
-
         tokenizer = get_tokenizer(student_model_name)
 
         train_dataset, val_dataset, test_dataset = build_datasets(
@@ -162,20 +150,15 @@ def main(config_path, mode):
         best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
 
         print("\nEvaluating student on internal test set...")
-        y_true, y_pred = evaluate_classifier(
+        evaluate_classifier(
             model=best_model,
             dataset=test_dataset,
             batch_size=config["model"]["batch_size"],
             device=device,
             title="Student internal test",
-            print_output=False,
+            print_output=True,
         )
 
-        print_metrics("Student Test Metrics", y_true, y_pred)
-
-    # =========================================================
-    # 3. Student with distillation
-    # =========================================================
     elif mode == "distill":
         print("\nTraining student with distillation...")
 
@@ -189,7 +172,6 @@ def main(config_path, mode):
         )
 
         student_model_name = config["model"]["student_name"]
-
         tokenizer = get_tokenizer(student_model_name)
 
         train_dataset, val_dataset, test_dataset = build_datasets(
@@ -217,16 +199,14 @@ def main(config_path, mode):
         best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
 
         print("\nEvaluating distilled student on internal test set...")
-        y_true, y_pred = evaluate_classifier(
+        evaluate_classifier(
             model=best_model,
             dataset=test_dataset,
             batch_size=config["model"]["batch_size"],
             device=device,
             title="Distilled student internal test",
-            print_output=False,
+            print_output=True,
         )
-
-        print_metrics("Distilled Student Test Metrics", y_true, y_pred)
 
     else:
         raise ValueError(f"Unknown mode: {mode}")
