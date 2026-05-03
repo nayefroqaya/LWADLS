@@ -1,4 +1,20 @@
 import os
+
+#os.environ["CUDA_VISIBLE_DEVICES"] = ""  # ⛔ Disable GPU completely
+
+import warnings
+import subprocess
+import sys
+
+import colorama
+import pandas as pd
+import torch
+
+from load_datalog import LogdataRead
+from utils import utils
+import psutil
+
+import os
 import warnings
 import subprocess
 import sys
@@ -131,12 +147,14 @@ def run_prediction_for_saved_model(
     return metrics_df, report_df, per_dataset_df
 
 
+
+# ====================== Main ======================
 def main():
     # ---------------- Device check ------------------
     if torch.cuda.is_available():
-        print(f"{GREEN}GPU detected. Using GPU.{RESET}")
+        print(f"{GREEN}GPU detected. Using GPU for encoding.{RESET}")
     else:
-        print(f"{YELLOW}No GPU detected. Using CPU.{RESET}")
+        print(f"{YELLOW}No GPU detected. Using CPU for encoding.{RESET}")
 
     # ---------------- Display options ----------------
     pd.set_option("display.max_columns", None)
@@ -144,40 +162,72 @@ def main():
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
 
-    # ---------------- Config ----------------
-    CONFIG_PATH = "../config/experiment.yaml"
-    config = load_yaml_config(CONFIG_PATH)
+    # ---------------- Project configuration ----------------
+    DATASET = 'HDFS'
+    DATASETS_FOLDER = 'datasets'
+    Round = '1'
+    mode = 'M'  # M multi classifier - S single classifier
+    Mix_or_stable = '0'  # 0 Full stable subset  / 1 mix subset
 
-    OUTPUT_DIR = config["output_dir"]
-    TRAIN_DATASETS = config["train_datasets"]
-    VAL_DATASETS = config["val_datasets"]
-    TEST_DATASETS = config["test_datasets"]
+    ALL_DATASET_LOG_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.LOG'
+    ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
 
-    # ---------------- Control switches ----------------
-    # For prediction only after models are already trained:
-    RUN_MLM = False
-    RUN_TRAINING = False
-    RUN_PREDICTION = True
-
-    # If you want to train everything again, set:
-    # RUN_MLM = True
-    # RUN_TRAINING = True
-    # RUN_PREDICTION = True
+    CONFIG_PATH =  "../config/experiment.yaml"
 
     # ---------------- Initialize classes ----------------
     logdata_read_obj = LogdataRead()
     utilities_obj = utils()
 
-    print(f"\n{GREEN}Experiment datasets from YAML{RESET}")
-    print("-" * 60)
-    print(f"Train datasets: {TRAIN_DATASETS}")
-    print(f"Val datasets:   {VAL_DATASETS}")
-    print(f"Test datasets:  {TEST_DATASETS}")
-    '''
+    # ---------------- Data as CSV ----------------
+    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
+    print(f"{GREEN}Reading the file was done successfully{RESET}")
+
+    # ---------------- Dataset Splitting ----------------
+    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
+    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
+                                                                                  Mix_or_stable)
+    # exit()
+    # ---------------- Process normal data ----------------
+
+    if Mix_or_stable == '0' and DATASET == 'S_BGL':  # Stable
+        # Create folder to save splits
+        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
+        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_'Stable'_Splitted_Datasets")
+    elif Mix_or_stable == '1' and DATASET == 'S_BGL':  # Mix
+        # Create folder to save splits
+        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
+        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_'Mix'_Splitted_Datasets")
+    else:
+
+        print(f"{GRAY}Processing normal data portion in the dataset...{RESET}")
+        save_path = os.path.join(f"../datasets/{DATASET}", f"{Round}_{DATASET}_Splitted_Datasets")
+
+    train_df = pd.read_pickle(os.path.join(save_path, "train_df.pkl"))
+    val_df = pd.read_pickle(os.path.join(save_path, "val_df.pkl"))
+    test_df = pd.read_pickle(os.path.join(save_path, "test_df.pkl"))
+
+    final_train_with_test_with_val = utilities_obj.processing_data_portion(train_df, val_df, test_df)
+
+    #exit()
+
+
     # ---------------- Training stages ----------------
+    CONFIG_PATH = "../config/experiment.yaml"
+    OUTPUT_DIR = "./outputs"
+
+    # IMPORTANT:
+    # These names must match your experiment.yaml exactly.
+    TRAIN_DATASETS = [ "BGL"]
+    VAL_DATASETS = [ "BGL"]
+    TEST_DATASETS = ["HDFS"]
+
+    RUN_TRAINING = True
+    RUN_PREDICTION = True
+    RUN_MLM = True
+
     if RUN_TRAINING:
         if RUN_MLM:
-            print("\n# 1. Optional MLM")
+            print("# 1. Optional MLM")
             run_command(
                 [
                     sys.executable,
@@ -187,7 +237,7 @@ def main():
                 ]
             )
 
-        print("\n# 2. Teacher")
+        print("# 2. Teacher")
         run_command(
             [
                 sys.executable,
@@ -199,7 +249,7 @@ def main():
             ]
         )
 
-        print("\n# 3. Student baseline")
+        print("# 3. Student baseline")
         run_command(
             [
                 sys.executable,
@@ -211,7 +261,7 @@ def main():
             ]
         )
 
-        print("\n# 4. Distilled student")
+        print("# 4. Distilled student")
         run_command(
             [
                 sys.executable,
@@ -222,47 +272,63 @@ def main():
                 "distill",
             ]
         )
-    '''
-    # ---------------- Prediction stages ----------------
+
+    # ---------------- Prediction only ----------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
-        model_modes = [
-            "teacher",
-            "student_no_distill",
-            "student_distilled",
-        ]
+        all_metrics = {}
+
+        teacher_metrics = run_prediction_for_saved_model(
+            config_path=CONFIG_PATH,
+            output_dir=OUTPUT_DIR,
+            model_mode="teacher",
+            train_datasets=TRAIN_DATASETS,
+            val_datasets=VAL_DATASETS,
+            test_datasets=TEST_DATASETS,
+            split="test",
+        )
+        all_metrics["teacher"] = teacher_metrics
+
+        student_metrics = run_prediction_for_saved_model(
+            config_path=CONFIG_PATH,
+            output_dir=OUTPUT_DIR,
+            model_mode="student_no_distill",
+            train_datasets=TRAIN_DATASETS,
+            val_datasets=VAL_DATASETS,
+            test_datasets=TEST_DATASETS,
+            split="test",
+        )
+        all_metrics["student_no_distill"] = student_metrics
+
+        distilled_metrics = run_prediction_for_saved_model(
+            config_path=CONFIG_PATH,
+            output_dir=OUTPUT_DIR,
+            model_mode="student_distilled",
+            train_datasets=TRAIN_DATASETS,
+            val_datasets=VAL_DATASETS,
+            test_datasets=TEST_DATASETS,
+            split="test",
+        )
+        all_metrics["student_distilled"] = distilled_metrics
+
+        # ---------------- Final comparison ----------------
+        print(f"\n{GREEN}Final prediction metrics comparison{RESET}")
+        print("=" * 70)
 
         summary_rows = []
 
-        for model_mode in model_modes:
-            metrics_df, report_df, per_dataset_df = run_prediction_for_saved_model(
-                config_path=CONFIG_PATH,
-                output_dir=OUTPUT_DIR,
-                model_mode=model_mode,
-                train_datasets=TRAIN_DATASETS,
-                val_datasets=VAL_DATASETS,
-                test_datasets=TEST_DATASETS,
-                split="test",
-            )
+        for model_name, metrics in all_metrics.items():
+            print_model_metrics(model_name, metrics)
 
-            print_model_summary(
-                model_name=model_mode,
-                metrics_df=metrics_df,
-                report_df=report_df,
-                per_dataset_df=per_dataset_df,
-            )
-
-            if metrics_df is not None:
-                row = metrics_df.iloc[0]
-
+            if metrics is not None:
                 summary_rows.append(
                     {
-                        "model": model_mode,
-                        "precision": row["precision"],
-                        "recall": row["recall"],
-                        "f1": row["f1"],
-                        "accuracy": row["accuracy"],
+                        "model": model_name,
+                        "precision": metrics.get("precision"),
+                        "recall": metrics.get("recall"),
+                        "f1": metrics.get("f1"),
+                        "accuracy": metrics.get("accuracy"),
                     }
                 )
 
@@ -276,14 +342,14 @@ def main():
 
             summary_df.to_csv(summary_path, index=False)
 
-            print(f"\n{GREEN}Final model comparison{RESET}")
-            print("=" * 80)
-            print(summary_df)
-
-            print(f"\nSaved final summary to:")
+            print(f"\n{GREEN}Saved final comparison to:{RESET}")
             print(summary_path)
 
+            print(f"\n{GREEN}Summary table:{RESET}")
+            print(summary_df)
+
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
+
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ dataset_path_template: "{dataset}/1_{dataset}_Splitted_Datasets"
 
 train_datasets: ["BGL"]
 val_datasets: ["BGL"]
-test_datasets: ["BGL"]
+test_datasets: ["HDFS"]
 
 
 #train_datasets: ["BGL", "HDFS"]
