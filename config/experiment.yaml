@@ -3,15 +3,22 @@ data_dir: "../datasets"
 
 dataset_path_template: "{dataset}/1_{dataset}_Splitted_Datasets"
 
+# =========================
+# Training stage
+# =========================
+# For training, validation, and internal test.
+# Keep test_datasets from the training domains.
 train_datasets: ["BGL"]
 val_datasets: ["BGL"]
-test_datasets: ["HDFS"]
+test_datasets: ["BGL"]
 
-
-#train_datasets: ["BGL", "HDFS"]
-#val_datasets: ["BGL", "HDFS"]
-#test_datasets: ["BGL"]
-
+# =========================
+# Prediction stage
+# =========================
+# This is for final cross-dataset testing using saved models.
+prediction_stage:
+  predict_split: "test"
+  predict_datasets: ["HDFS"]
 
 split_files:
   train: "train_df.pkl"

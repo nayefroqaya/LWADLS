@@ -107,7 +107,6 @@ def save_text_report(
     )
 
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
-
     tn, fp, fn, tp = cm.ravel()
 
     with open(file_path, "w", encoding="utf-8") as f:
@@ -320,31 +319,10 @@ def main():
         description="Run prediction using a saved anomaly detection model."
     )
 
-    parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to experiment YAML file.",
-    )
-
-    parser.add_argument(
-        "--model_path",
-        required=True,
-        help="Path to saved model folder, e.g. ../outputs/.../best_model",
-    )
-
-    parser.add_argument(
-        "--split",
-        required=True,
-        choices=["train", "val", "test"],
-        help="Which split to predict on.",
-    )
-
-    parser.add_argument(
-        "--datasets",
-        nargs="+",
-        required=True,
-        help="Dataset names, e.g. BGL HDFS TH_b",
-    )
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--model_path", required=True)
+    parser.add_argument("--split", required=True, choices=["train", "val", "test"])
+    parser.add_argument("--datasets", nargs="+", required=True)
 
     args = parser.parse_args()
 

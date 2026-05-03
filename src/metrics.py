@@ -29,7 +29,8 @@ def get_classification_report_df(y_true, y_pred):
     report_dict = classification_report(
         y_true,
         y_pred,
-        target_names=["Normal", "Anomaly"],
+        labels=[0, 1],
+        target_names=["Class 0 - Normal", "Class 1 - Anomaly"],
         output_dict=True,
         zero_division=0,
     )
@@ -52,13 +53,14 @@ def print_metrics(title, y_true, y_pred):
         classification_report(
             y_true,
             y_pred,
-            target_names=["Normal", "Anomaly"],
+            labels=[0, 1],
+            target_names=["Class 0 - Normal", "Class 1 - Anomaly"],
             zero_division=0,
         )
     )
 
     print("Confusion matrix:")
-    print(confusion_matrix(y_true, y_pred))
+    print(confusion_matrix(y_true, y_pred, labels=[0, 1]))
 
     return metrics
 

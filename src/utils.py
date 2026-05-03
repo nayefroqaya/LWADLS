@@ -228,6 +228,7 @@ class utils:
         final_dataset.info()
         return final_dataset
 
+
 def load_config(config_path: str):
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
@@ -253,6 +254,7 @@ def ensure_dir(path: str):
 def clean_name(items):
     if isinstance(items, str):
         return items.replace(" ", "")
+
     return "_".join([str(x).replace(" ", "") for x in items])
 
 
@@ -274,5 +276,3 @@ def save_model_and_tokenizer(model, tokenizer, output_dir: str):
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
     print(f"Saved model to: {output_dir}")
-
-

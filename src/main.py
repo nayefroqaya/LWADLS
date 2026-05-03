@@ -1,20 +1,4 @@
 import os
-
-#os.environ["CUDA_VISIBLE_DEVICES"] = ""  # ⛔ Disable GPU completely
-
-import warnings
-import subprocess
-import sys
-
-import colorama
-import pandas as pd
-import torch
-
-from load_datalog import LogdataRead
-from utils import utils
-import psutil
-
-import os
 import warnings
 import subprocess
 import sys
@@ -27,12 +11,11 @@ import torch
 from load_datalog import LogdataRead
 from utils import utils
 
-# ====================== Setup ======================
+
 warnings.filterwarnings("ignore")
 colorama.init()
 
 GREEN = colorama.Fore.GREEN
-GRAY = colorama.Fore.LIGHTBLACK_EX
 RESET = colorama.Fore.RESET
 YELLOW = colorama.Fore.YELLOW
 RED = colorama.Fore.RED
@@ -99,14 +82,15 @@ def run_prediction_for_saved_model(
     model_mode,
     train_datasets,
     val_datasets,
-    test_datasets,
-    split="test",
+    internal_test_datasets,
+    predict_split,
+    predict_datasets,
 ):
     exp_name = make_experiment_name(
         model_mode,
         train_datasets,
         val_datasets,
-        test_datasets,
+        internal_test_datasets,
     )
 
     model_path = os.path.join(output_dir, exp_name, "best_model")
@@ -124,16 +108,16 @@ def run_prediction_for_saved_model(
             "--model_path",
             model_path,
             "--split",
-            split,
+            predict_split,
             "--datasets",
-            *test_datasets,
+            *predict_datasets,
         ]
     )
 
     prediction_folder = os.path.join(
         output_dir,
         "predictions",
-        f"{exp_name}__best_model__split-{split}__datasets-{clean_name(test_datasets)}",
+        f"{exp_name}__best_model__split-{predict_split}__datasets-{clean_name(predict_datasets)}",
     )
 
     metrics_path = os.path.join(prediction_folder, "metrics.csv")
@@ -147,32 +131,17 @@ def run_prediction_for_saved_model(
     return metrics_df, report_df, per_dataset_df
 
 
-
-# ====================== Main ======================
 def main():
-    # ---------------- Device check ------------------
     if torch.cuda.is_available():
-        print(f"{GREEN}GPU detected. Using GPU for encoding.{RESET}")
+        print(f"{GREEN}GPU detected. Using GPU.{RESET}")
     else:
-        print(f"{YELLOW}No GPU detected. Using CPU for encoding.{RESET}")
+        print(f"{YELLOW}No GPU detected. Using CPU.{RESET}")
 
-    # ---------------- Display options ----------------
     pd.set_option("display.max_columns", None)
     pd.set_option("display.max_rows", None)
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
 
-    # ---------------- Project configuration ----------------
-    DATASET = 'HDFS'
-    DATASETS_FOLDER = 'datasets'
-    Round = '1'
-    mode = 'M'  # M multi classifier - S single classifier
-    Mix_or_stable = '0'  # 0 Full stable subset  / 1 mix subset
-
-    ALL_DATASET_LOG_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.LOG'
-    ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
-
-    CONFIG_PATH =  "../config/experiment.yaml"
     '''
 
     # ---------------- Initialize classes ----------------
@@ -193,33 +162,49 @@ def main():
 
 
 
-    # ---------------- Training stages ----------------
+
     CONFIG_PATH = "../config/experiment.yaml"
-    OUTPUT_DIR = "./outputs"
+    config = load_yaml_config(CONFIG_PATH)
 
-    # IMPORTANT:
-    # These names must match your experiment.yaml exactly.
-    TRAIN_DATASETS = [ "BGL"]
-    VAL_DATASETS = [ "BGL"]
-    TEST_DATASETS = ["HDFS"]
+    OUTPUT_DIR = config["output_dir"]
 
+    TRAIN_DATASETS = config["train_datasets"]
+    VAL_DATASETS = config["val_datasets"]
+    INTERNAL_TEST_DATASETS = config["test_datasets"]
+
+    prediction_stage = config.get("prediction_stage", {})
+    PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
+    PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
+
+    RUN_MLM = True
     RUN_TRAINING = True
     RUN_PREDICTION = True
-    RUN_MLM = True
+
+    # To run only prediction later, use:
+    # RUN_MLM = False
+    # RUN_TRAINING = False
+    # RUN_PREDICTION = True
+
+    logdata_read_obj = LogdataRead()
+    utilities_obj = utils()
+
+    print(f"\n{GREEN}Training stage{RESET}")
+    print("-" * 60)
+    print(f"Train datasets:         {TRAIN_DATASETS}")
+    print(f"Validation datasets:    {VAL_DATASETS}")
+    print(f"Internal test datasets: {INTERNAL_TEST_DATASETS}")
+
+    print(f"\n{GREEN}Prediction stage{RESET}")
+    print("-" * 60)
+    print(f"Prediction split:       {PREDICT_SPLIT}")
+    print(f"Prediction datasets:    {PREDICT_DATASETS}")
 
     if RUN_TRAINING:
         if RUN_MLM:
-            print("# 1. Optional MLM")
-            run_command(
-                [
-                    sys.executable,
-                    "run_mlm.py",
-                    "--config",
-                    CONFIG_PATH,
-                ]
-            )
+            print("\n# 1. MLM pretraining")
+            run_command([sys.executable, "run_mlm.py", "--config", CONFIG_PATH])
 
-        print("# 2. Teacher")
+        print("\n# 2. Teacher")
         run_command(
             [
                 sys.executable,
@@ -231,7 +216,7 @@ def main():
             ]
         )
 
-        print("# 3. Student baseline")
+        print("\n# 3. Student baseline")
         run_command(
             [
                 sys.executable,
@@ -243,7 +228,7 @@ def main():
             ]
         )
 
-        print("# 4. Distilled student")
+        print("\n# 4. Distilled student")
         run_command(
             [
                 sys.executable,
@@ -255,62 +240,49 @@ def main():
             ]
         )
 
-    # ---------------- Prediction only ----------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
-        all_metrics = {}
-
-        teacher_metrics = run_prediction_for_saved_model(
-            config_path=CONFIG_PATH,
-            output_dir=OUTPUT_DIR,
-            model_mode="teacher",
-            train_datasets=TRAIN_DATASETS,
-            val_datasets=VAL_DATASETS,
-            test_datasets=TEST_DATASETS,
-            split="test",
-        )
-        all_metrics["teacher"] = teacher_metrics
-
-        student_metrics = run_prediction_for_saved_model(
-            config_path=CONFIG_PATH,
-            output_dir=OUTPUT_DIR,
-            model_mode="student_no_distill",
-            train_datasets=TRAIN_DATASETS,
-            val_datasets=VAL_DATASETS,
-            test_datasets=TEST_DATASETS,
-            split="test",
-        )
-        all_metrics["student_no_distill"] = student_metrics
-
-        distilled_metrics = run_prediction_for_saved_model(
-            config_path=CONFIG_PATH,
-            output_dir=OUTPUT_DIR,
-            model_mode="student_distilled",
-            train_datasets=TRAIN_DATASETS,
-            val_datasets=VAL_DATASETS,
-            test_datasets=TEST_DATASETS,
-            split="test",
-        )
-        all_metrics["student_distilled"] = distilled_metrics
-
-        # ---------------- Final comparison ----------------
-        print(f"\n{GREEN}Final prediction metrics comparison{RESET}")
-        print("=" * 70)
+        model_modes = [
+            "teacher",
+            "student_no_distill",
+            "student_distilled",
+        ]
 
         summary_rows = []
 
-        for model_name, metrics in all_metrics.items():
-            print_model_metrics(model_name, metrics)
+        for model_mode in model_modes:
+            metrics_df, report_df, per_dataset_df = run_prediction_for_saved_model(
+                config_path=CONFIG_PATH,
+                output_dir=OUTPUT_DIR,
+                model_mode=model_mode,
+                train_datasets=TRAIN_DATASETS,
+                val_datasets=VAL_DATASETS,
+                internal_test_datasets=INTERNAL_TEST_DATASETS,
+                predict_split=PREDICT_SPLIT,
+                predict_datasets=PREDICT_DATASETS,
+            )
 
-            if metrics is not None:
+            print_model_summary(
+                model_name=model_mode,
+                metrics_df=metrics_df,
+                report_df=report_df,
+                per_dataset_df=per_dataset_df,
+            )
+
+            if metrics_df is not None:
+                row = metrics_df.iloc[0]
+
                 summary_rows.append(
                     {
-                        "model": model_name,
-                        "precision": metrics.get("precision"),
-                        "recall": metrics.get("recall"),
-                        "f1": metrics.get("f1"),
-                        "accuracy": metrics.get("accuracy"),
+                        "model": model_mode,
+                        "train_datasets": clean_name(TRAIN_DATASETS),
+                        "val_datasets": clean_name(VAL_DATASETS),
+                        "prediction_datasets": clean_name(PREDICT_DATASETS),
+                        "precision": row["precision"],
+                        "recall": row["recall"],
+                        "f1": row["f1"],
+                        "accuracy": row["accuracy"],
                     }
                 )
 
@@ -319,19 +291,19 @@ def main():
 
             summary_path = os.path.join(
                 OUTPUT_DIR,
-                f"final_prediction_summary__test-{clean_name(TEST_DATASETS)}.csv",
+                f"final_prediction_summary__train-{clean_name(TRAIN_DATASETS)}__predict-{clean_name(PREDICT_DATASETS)}.csv",
             )
 
             summary_df.to_csv(summary_path, index=False)
 
-            print(f"\n{GREEN}Saved final comparison to:{RESET}")
-            print(summary_path)
-
-            print(f"\n{GREEN}Summary table:{RESET}")
+            print(f"\n{GREEN}Final model comparison{RESET}")
+            print("=" * 80)
             print(summary_df)
 
-    print(f"\n{GREEN}All steps completed successfully.{RESET}")
+            print(f"\nSaved final summary to:")
+            print(summary_path)
 
+    print(f"\n{GREEN}All steps completed successfully.{RESET}")
 
 
 if __name__ == "__main__":
