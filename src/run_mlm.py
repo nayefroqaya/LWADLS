@@ -1,7 +1,6 @@
 import argparse
-import os
 
-from data_loader import load_all_splits
+from data_loader import load_split_from_dataset_folders
 from aggregator import aggregate_by_block, print_sequence_stats
 from models import get_tokenizer
 from mlm_pretraining import run_mlm_pretraining
@@ -16,7 +15,11 @@ def main(config_path):
 
     print(f"Using device: {device}")
 
-    train_raw, _, _ = load_all_splits(config)
+    train_raw = load_split_from_dataset_folders(
+        config=config,
+        dataset_names=config["train_datasets"],
+        split="train",
+    )
 
     columns = config["columns"]
     labels = config["labels"]
@@ -31,10 +34,9 @@ def main(config_path):
         anomaly_values=labels["anomaly_values"],
     )
 
-    print_sequence_stats("MLM train", train_seq)
+    print_sequence_stats("MLM training data", train_seq)
 
-    model_name = config["mlm"]["model_name"]
-    tokenizer = get_tokenizer(model_name)
+    tokenizer = get_tokenizer(config["mlm"]["model_name"])
 
     output_dir = make_output_dir(config, "mlm_teacher")
 
@@ -42,7 +44,7 @@ def main(config_path):
         train_dataframe=train_seq,
         tokenizer=tokenizer,
         mlm_config=config["mlm"],
-        model_name=model_name,
+        model_name=config["mlm"]["model_name"],
         max_length=config["model"]["max_length"],
         output_dir=output_dir,
         device=device,
