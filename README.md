@@ -61,3 +61,13 @@ python run_experiment.py --config configs/experiment.yaml --mode distill
 - Train: HDFS_train + BGL_train + Spirit_train + TH_a_train
 - Val:   HDFS_val   + BGL_val   + Spirit_val   + TH_a_val
 - Test:  TH_b_test# LWADLS
+
+ ## ../outputs/
+└── predictions/
+    └── teacher__train-BGL__val-BGL__test-BGL__best_model__split-test__datasets-BGL/
+        ├── evaluation_report.txt          ✅ (READ THIS)
+        ├── metrics.csv
+        ├── classification_report.csv
+        ├── per_dataset_metrics.csv
+        ├── predictions.csv
+        └── per_dataset_classification_reports/

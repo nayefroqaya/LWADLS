@@ -89,44 +89,98 @@ def save_text_report(
     model_path,
     split,
 ):
+    report_dict = classification_report(
+        y_true,
+        y_pred,
+        labels=[0, 1],
+        target_names=["Class 0 - Normal", "Class 1 - Anomaly"],
+        output_dict=True,
+        zero_division=0,
+    )
+
+    report_text = classification_report(
+        y_true,
+        y_pred,
+        labels=[0, 1],
+        target_names=["Class 0 - Normal", "Class 1 - Anomaly"],
+        zero_division=0,
+    )
+
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+
+    tn, fp, fn, tp = cm.ravel()
+
     with open(file_path, "w", encoding="utf-8") as f:
-        f.write("=" * 80 + "\n")
+        f.write("=" * 90 + "\n")
         f.write("ANOMALY DETECTION EVALUATION REPORT\n")
-        f.write("=" * 80 + "\n\n")
+        f.write("=" * 90 + "\n\n")
 
         f.write(f"Model path: {model_path}\n")
         f.write(f"Split: {split}\n")
         f.write(f"Datasets: {datasets}\n\n")
 
-        f.write("Overall Metrics\n")
-        f.write("-" * 40 + "\n")
-        f.write(f"Precision: {metrics['precision']:.4f}\n")
-        f.write(f"Recall:    {metrics['recall']:.4f}\n")
-        f.write(f"F1-score:  {metrics['f1']:.4f}\n")
-        f.write(f"Accuracy:  {metrics['accuracy']:.4f}\n\n")
+        f.write("Label Meaning\n")
+        f.write("-" * 50 + "\n")
+        f.write("Class 0 = Normal\n")
+        f.write("Class 1 = Anomaly\n\n")
 
-        f.write("Classification Report\n")
-        f.write("-" * 40 + "\n")
-        report_text = classification_report(
-            y_true,
-            y_pred,
-            target_names=["Normal", "Anomaly"],
-            zero_division=0,
-        )
+        f.write("Overall Metrics\n")
+        f.write("-" * 50 + "\n")
+        f.write(f"Accuracy:  {metrics['accuracy']:.6f}\n")
+        f.write(f"Precision: {metrics['precision']:.6f}  # binary precision for Class 1 / Anomaly\n")
+        f.write(f"Recall:    {metrics['recall']:.6f}  # binary recall for Class 1 / Anomaly\n")
+        f.write(f"F1-score:  {metrics['f1']:.6f}  # binary F1 for Class 1 / Anomaly\n\n")
+
+        f.write("Per-Class Metrics\n")
+        f.write("-" * 50 + "\n")
+
+        for class_name in ["Class 0 - Normal", "Class 1 - Anomaly"]:
+            class_metrics = report_dict[class_name]
+
+            f.write(f"{class_name}\n")
+            f.write(f"  Precision: {class_metrics['precision']:.6f}\n")
+            f.write(f"  Recall:    {class_metrics['recall']:.6f}\n")
+            f.write(f"  F1-score:  {class_metrics['f1-score']:.6f}\n")
+            f.write(f"  Support:   {int(class_metrics['support'])}\n\n")
+
+        f.write("Macro Average\n")
+        f.write("-" * 50 + "\n")
+        f.write(f"Precision: {report_dict['macro avg']['precision']:.6f}\n")
+        f.write(f"Recall:    {report_dict['macro avg']['recall']:.6f}\n")
+        f.write(f"F1-score:  {report_dict['macro avg']['f1-score']:.6f}\n")
+        f.write(f"Support:   {int(report_dict['macro avg']['support'])}\n\n")
+
+        f.write("Weighted Average\n")
+        f.write("-" * 50 + "\n")
+        f.write(f"Precision: {report_dict['weighted avg']['precision']:.6f}\n")
+        f.write(f"Recall:    {report_dict['weighted avg']['recall']:.6f}\n")
+        f.write(f"F1-score:  {report_dict['weighted avg']['f1-score']:.6f}\n")
+        f.write(f"Support:   {int(report_dict['weighted avg']['support'])}\n\n")
+
+        f.write("Full Classification Report\n")
+        f.write("-" * 50 + "\n")
         f.write(report_text + "\n")
 
         f.write("Confusion Matrix\n")
-        f.write("-" * 40 + "\n")
-        cm = confusion_matrix(y_true, y_pred)
+        f.write("-" * 50 + "\n")
+        f.write("Rows = true labels, Columns = predicted labels\n")
+        f.write("Order: [Class 0 - Normal, Class 1 - Anomaly]\n\n")
         f.write(str(cm) + "\n\n")
+
+        f.write("Confusion Matrix Details\n")
+        f.write("-" * 50 + "\n")
+        f.write(f"True Normal predicted Normal  (TN): {tn}\n")
+        f.write(f"True Normal predicted Anomaly (FP): {fp}\n")
+        f.write(f"True Anomaly predicted Normal (FN): {fn}\n")
+        f.write(f"True Anomaly predicted Anomaly(TP): {tp}\n\n")
 
         if per_dataset_df is not None:
             f.write("Per-Dataset Metrics\n")
-            f.write("-" * 40 + "\n")
+            f.write("-" * 50 + "\n")
             f.write(per_dataset_df.to_string(index=False))
             f.write("\n\n")
 
-        f.write("=" * 80 + "\n")
+        f.write("=" * 90 + "\n")
 
     print(f"\nSaved readable report: {file_path}")
 
