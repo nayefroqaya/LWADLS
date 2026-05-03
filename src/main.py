@@ -301,6 +301,8 @@ def main():
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
     print(f"Anomaly threshold:      {ANOMALY_THRESHOLD}")
 
+    '''
+
     if RUN_TRAINING:
         if RUN_MLM:
             print("\n# 1. MLM pretraining")
@@ -341,7 +343,7 @@ def main():
                 "distill",
             ]
         )
-
+    '''
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
