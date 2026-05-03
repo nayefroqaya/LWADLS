@@ -1,12 +1,12 @@
 import argparse
-import torch
+from transformers import AutoModelForSequenceClassification
 
 from data_loader import load_train_val_test_from_config
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
 from models import get_teacher_model, get_student_model, get_tokenizer
-from training import train_classifier, evaluate_classifier
-from distillation import train_student_with_distillation
+from trainer import train_classifier, evaluate_classifier
+from distillation import train_distilled_student
 from metrics import print_metrics
 from utils import (
     load_config,
@@ -64,6 +64,14 @@ def prepare_data(config):
     return train_seq, val_seq, test_seq
 
 
+def build_datasets(train_seq, val_seq, test_seq, tokenizer, max_length):
+    train_dataset = LogSequenceDataset(train_seq, tokenizer, max_length)
+    val_dataset = LogSequenceDataset(val_seq, tokenizer, max_length)
+    test_dataset = LogSequenceDataset(test_seq, tokenizer, max_length)
+
+    return train_dataset, val_dataset, test_dataset
+
+
 def main(config_path, mode):
     set_seed(42)
 
@@ -75,18 +83,6 @@ def main(config_path, mode):
 
     train_seq, val_seq, test_seq = prepare_data(config)
 
-    tokenizer = get_tokenizer(config["model"]["teacher_name"])
-
-    train_dataset = LogSequenceDataset(
-        train_seq, tokenizer, config["model"]["max_length"]
-    )
-    val_dataset = LogSequenceDataset(
-        val_seq, tokenizer, config["model"]["max_length"]
-    )
-    test_dataset = LogSequenceDataset(
-        test_seq, tokenizer, config["model"]["max_length"]
-    )
-
     output_dir = make_output_dir(config, mode)
 
     # =========================================================
@@ -95,51 +91,87 @@ def main(config_path, mode):
     if mode == "teacher":
         print("\nTraining teacher model...")
 
+        teacher_model_name = config["model"]["teacher_name"]
+
+        tokenizer = get_tokenizer(teacher_model_name)
+
+        train_dataset, val_dataset, test_dataset = build_datasets(
+            train_seq=train_seq,
+            val_seq=val_seq,
+            test_seq=test_seq,
+            tokenizer=tokenizer,
+            max_length=config["model"]["max_length"],
+        )
+
         model = get_teacher_model(config)
 
-        model = train_classifier(
+        best_path = train_classifier(
             model=model,
+            tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            training_config=config["model"],
+            config=config["model"],
             output_dir=output_dir,
             device=device,
         )
 
+        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+
         print("\nEvaluating teacher on internal test set...")
         y_true, y_pred = evaluate_classifier(
-            model, test_dataset, config["model"]["batch_size"], device
+            model=best_model,
+            dataset=test_dataset,
+            batch_size=config["model"]["batch_size"],
+            device=device,
+            title="Teacher internal test",
+            print_output=False,
         )
 
         print_metrics("Teacher Test Metrics", y_true, y_pred)
-
-        save_model_and_tokenizer(model, tokenizer, f"{output_dir}/best_model")
 
     # =========================================================
     # 2. Student without distillation
     # =========================================================
     elif mode == "student":
-        print("\nTraining student (no distillation)...")
+        print("\nTraining student without distillation...")
+
+        student_model_name = config["model"]["student_name"]
+
+        tokenizer = get_tokenizer(student_model_name)
+
+        train_dataset, val_dataset, test_dataset = build_datasets(
+            train_seq=train_seq,
+            val_seq=val_seq,
+            test_seq=test_seq,
+            tokenizer=tokenizer,
+            max_length=config["model"]["max_length"],
+        )
 
         model = get_student_model(config)
 
-        model = train_classifier(
+        best_path = train_classifier(
             model=model,
+            tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            training_config=config["model"],
+            config=config["model"],
             output_dir=output_dir,
             device=device,
         )
 
+        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+
         print("\nEvaluating student on internal test set...")
         y_true, y_pred = evaluate_classifier(
-            model, test_dataset, config["model"]["batch_size"], device
+            model=best_model,
+            dataset=test_dataset,
+            batch_size=config["model"]["batch_size"],
+            device=device,
+            title="Student internal test",
+            print_output=False,
         )
 
         print_metrics("Student Test Metrics", y_true, y_pred)
-
-        save_model_and_tokenizer(model, tokenizer, f"{output_dir}/best_model")
 
     # =========================================================
     # 3. Student with distillation
@@ -147,36 +179,54 @@ def main(config_path, mode):
     elif mode == "distill":
         print("\nTraining student with distillation...")
 
-        teacher_dir = make_output_dir(config, "teacher") + "/best_model"
+        teacher_dir = make_output_dir(config, "teacher")
+        teacher_path = f"{teacher_dir}/best_model"
 
-        teacher_model = get_teacher_model(config)
-        teacher_model.load_state_dict(
-            torch.load(f"{teacher_dir}/pytorch_model.bin", map_location=device)
+        print(f"Loading trained teacher from: {teacher_path}")
+
+        teacher_model = AutoModelForSequenceClassification.from_pretrained(
+            teacher_path
+        )
+
+        student_model_name = config["model"]["student_name"]
+
+        tokenizer = get_tokenizer(student_model_name)
+
+        train_dataset, val_dataset, test_dataset = build_datasets(
+            train_seq=train_seq,
+            val_seq=val_seq,
+            test_seq=test_seq,
+            tokenizer=tokenizer,
+            max_length=config["model"]["max_length"],
         )
 
         student_model = get_student_model(config)
 
-        student_model = train_student_with_distillation(
-            student_model=student_model,
-            teacher_model=teacher_model,
+        best_path = train_distilled_student(
+            teacher=teacher_model,
+            student=student_model,
+            tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
+            model_config=config["model"],
             distill_config=config["distillation"],
             output_dir=output_dir,
             device=device,
         )
 
-        print("\nEvaluating distilled student...")
+        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+
+        print("\nEvaluating distilled student on internal test set...")
         y_true, y_pred = evaluate_classifier(
-            student_model,
-            test_dataset,
-            config["model"]["batch_size"],
-            device,
+            model=best_model,
+            dataset=test_dataset,
+            batch_size=config["model"]["batch_size"],
+            device=device,
+            title="Distilled student internal test",
+            print_output=False,
         )
 
         print_metrics("Distilled Student Test Metrics", y_true, y_pred)
-
-        save_model_and_tokenizer(student_model, tokenizer, f"{output_dir}/best_model")
 
     else:
         raise ValueError(f"Unknown mode: {mode}")
@@ -184,11 +234,18 @@ def main(config_path, mode):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
+
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to experiment YAML file.",
+    )
+
     parser.add_argument(
         "--mode",
         required=True,
         choices=["teacher", "student", "distill"],
+        help="Training mode.",
     )
 
     args = parser.parse_args()
