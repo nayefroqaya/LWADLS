@@ -1,27 +1,31 @@
-import os
 import argparse
-from transformers import AutoModelForSequenceClassification
+import torch
 
-from data_loader import load_all_splits
+from data_loader import load_train_val_test_from_config
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
-from models import get_tokenizer, get_sequence_classifier
-from trainer import train_classifier, evaluate_with_dataframe
-from distillation import train_distilled_student
+from models import get_teacher_model, get_student_model, get_tokenizer
+from training import train_classifier, evaluate_classifier
+from distillation import train_student_with_distillation
+from metrics import print_metrics
 from utils import (
     load_config,
     get_device,
     set_seed,
-    ensure_dir,
     make_output_dir,
+    save_model_and_tokenizer,
 )
 
 
 def prepare_data(config):
-    train_raw, val_raw, test_raw = load_all_splits(config)
+    print("\nLoading datasets...")
+
+    train_raw, val_raw, test_raw = load_train_val_test_from_config(config)
 
     columns = config["columns"]
     labels = config["labels"]
+
+    print("\nAggregating logs into sequences...")
 
     train_seq = aggregate_by_block(
         train_raw,
@@ -55,164 +59,130 @@ def prepare_data(config):
 
     print_sequence_stats("Train", train_seq)
     print_sequence_stats("Validation", val_seq)
-    print_sequence_stats("Test", test_seq)
+    print_sequence_stats("Test (internal)", test_seq)
 
     return train_seq, val_seq, test_seq
 
 
-def build_datasets(train_seq, val_seq, test_seq, tokenizer, max_length):
-    train_dataset = LogSequenceDataset(train_seq, tokenizer, max_length)
-    val_dataset = LogSequenceDataset(val_seq, tokenizer, max_length)
-    test_dataset = LogSequenceDataset(test_seq, tokenizer, max_length)
+def main(config_path, mode):
+    set_seed(42)
 
-    return train_dataset, val_dataset, test_dataset
+    config = load_config(config_path)
+    device = get_device()
 
-
-def run_teacher(config, device):
-    output_dir = make_output_dir(config, "teacher")
-    ensure_dir(output_dir)
+    print(f"\nUsing device: {device}")
+    print(f"Mode: {mode}")
 
     train_seq, val_seq, test_seq = prepare_data(config)
 
-    model_name = config["model"]["teacher_name"]
+    tokenizer = get_tokenizer(config["model"]["teacher_name"])
 
-    mlm_dir = make_output_dir(config, "mlm_teacher")
-    if config.get("mlm", {}).get("enabled", False) and os.path.exists(mlm_dir):
-        print(f"Using MLM-pretrained model: {mlm_dir}")
-        model_name = mlm_dir
-
-    tokenizer = get_tokenizer(model_name)
-
-    train_dataset, val_dataset, test_dataset = build_datasets(
-        train_seq,
-        val_seq,
-        test_seq,
-        tokenizer,
-        config["model"]["max_length"],
+    train_dataset = LogSequenceDataset(
+        train_seq, tokenizer, config["model"]["max_length"]
+    )
+    val_dataset = LogSequenceDataset(
+        val_seq, tokenizer, config["model"]["max_length"]
+    )
+    test_dataset = LogSequenceDataset(
+        test_seq, tokenizer, config["model"]["max_length"]
     )
 
-    model = get_sequence_classifier(model_name)
+    output_dir = make_output_dir(config, mode)
 
-    best_path = train_classifier(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        config=config["model"],
-        output_dir=output_dir,
-        device=device,
-    )
+    # =========================================================
+    # 1. Teacher training
+    # =========================================================
+    if mode == "teacher":
+        print("\nTraining teacher model...")
 
-    best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+        model = get_teacher_model(config)
 
-    evaluate_with_dataframe(
-        model=best_model,
-        dataframe=test_seq,
-        dataset=test_dataset,
-        batch_size=config["model"]["batch_size"],
-        device=device,
-        output_dir=os.path.join(output_dir, "test_results"),
-        title="Teacher test evaluation",
-    )
-
-
-def run_student(config, device):
-    output_dir = make_output_dir(config, "student_no_distill")
-    ensure_dir(output_dir)
-
-    train_seq, val_seq, test_seq = prepare_data(config)
-
-    model_name = config["model"]["student_name"]
-    tokenizer = get_tokenizer(model_name)
-
-    train_dataset, val_dataset, test_dataset = build_datasets(
-        train_seq,
-        val_seq,
-        test_seq,
-        tokenizer,
-        config["model"]["max_length"],
-    )
-
-    model = get_sequence_classifier(model_name)
-
-    best_path = train_classifier(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        config=config["model"],
-        output_dir=output_dir,
-        device=device,
-    )
-
-    best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
-
-    evaluate_with_dataframe(
-        model=best_model,
-        dataframe=test_seq,
-        dataset=test_dataset,
-        batch_size=config["model"]["batch_size"],
-        device=device,
-        output_dir=os.path.join(output_dir, "test_results"),
-        title="Student without distillation test evaluation",
-    )
-
-
-def run_distillation(config, device):
-    output_dir = make_output_dir(config, "student_distilled")
-    ensure_dir(output_dir)
-
-    teacher_dir = make_output_dir(config, "teacher")
-    teacher_path = os.path.join(teacher_dir, "best_model")
-
-    if not os.path.exists(teacher_path):
-        raise FileNotFoundError(
-            f"Trained teacher not found: {teacher_path}. "
-            f"Run teacher first."
+        model = train_classifier(
+            model=model,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            training_config=config["model"],
+            output_dir=output_dir,
+            device=device,
         )
 
-    train_seq, val_seq, test_seq = prepare_data(config)
+        print("\nEvaluating teacher on internal test set...")
+        y_true, y_pred = evaluate_classifier(
+            model, test_dataset, config["model"]["batch_size"], device
+        )
 
-    student_name = config["model"]["student_name"]
-    tokenizer = get_tokenizer(student_name)
+        print_metrics("Teacher Test Metrics", y_true, y_pred)
 
-    train_dataset, val_dataset, test_dataset = build_datasets(
-        train_seq,
-        val_seq,
-        test_seq,
-        tokenizer,
-        config["model"]["max_length"],
-    )
+        save_model_and_tokenizer(model, tokenizer, f"{output_dir}/best_model")
 
-    teacher = AutoModelForSequenceClassification.from_pretrained(teacher_path)
-    student = get_sequence_classifier(student_name)
+    # =========================================================
+    # 2. Student without distillation
+    # =========================================================
+    elif mode == "student":
+        print("\nTraining student (no distillation)...")
 
-    best_path = train_distilled_student(
-        teacher=teacher,
-        student=student,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        model_config=config["model"],
-        distill_config=config["distillation"],
-        output_dir=output_dir,
-        device=device,
-    )
+        model = get_student_model(config)
 
-    best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+        model = train_classifier(
+            model=model,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            training_config=config["model"],
+            output_dir=output_dir,
+            device=device,
+        )
 
-    evaluate_with_dataframe(
-        model=best_model,
-        dataframe=test_seq,
-        dataset=test_dataset,
-        batch_size=config["model"]["batch_size"],
-        device=device,
-        output_dir=os.path.join(output_dir, "test_results"),
-        title="Distilled student test evaluation",
-    )
+        print("\nEvaluating student on internal test set...")
+        y_true, y_pred = evaluate_classifier(
+            model, test_dataset, config["model"]["batch_size"], device
+        )
+
+        print_metrics("Student Test Metrics", y_true, y_pred)
+
+        save_model_and_tokenizer(model, tokenizer, f"{output_dir}/best_model")
+
+    # =========================================================
+    # 3. Student with distillation
+    # =========================================================
+    elif mode == "distill":
+        print("\nTraining student with distillation...")
+
+        teacher_dir = make_output_dir(config, "teacher") + "/best_model"
+
+        teacher_model = get_teacher_model(config)
+        teacher_model.load_state_dict(
+            torch.load(f"{teacher_dir}/pytorch_model.bin", map_location=device)
+        )
+
+        student_model = get_student_model(config)
+
+        student_model = train_student_with_distillation(
+            student_model=student_model,
+            teacher_model=teacher_model,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            distill_config=config["distillation"],
+            output_dir=output_dir,
+            device=device,
+        )
+
+        print("\nEvaluating distilled student...")
+        y_true, y_pred = evaluate_classifier(
+            student_model,
+            test_dataset,
+            config["model"]["batch_size"],
+            device,
+        )
+
+        print_metrics("Distilled Student Test Metrics", y_true, y_pred)
+
+        save_model_and_tokenizer(student_model, tokenizer, f"{output_dir}/best_model")
+
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
 
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument(
@@ -223,23 +193,4 @@ def main():
 
     args = parser.parse_args()
 
-    set_seed(42)
-
-    config = load_config(args.config)
-    device = get_device()
-
-    print(f"Using device: {device}")
-    print(f"Running mode: {args.mode}")
-
-    if args.mode == "teacher":
-        run_teacher(config, device)
-
-    elif args.mode == "student":
-        run_student(config, device)
-
-    elif args.mode == "distill":
-        run_distillation(config, device)
-
-
-if __name__ == "__main__":
-    main()
+    main(args.config, args.mode)
