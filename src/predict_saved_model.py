@@ -20,7 +20,7 @@ from utils import load_config, get_device, ensure_dir, clean_name
 
 
 @torch.no_grad()
-def predict_model(model, dataset, batch_size, device):
+def predict_model(model, dataset, batch_size, device, threshold=0.5):
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     model.to(device)
@@ -46,34 +46,43 @@ def predict_model(model, dataset, batch_size, device):
         logits = outputs.logits
 
         probabilities = torch.softmax(logits, dim=-1)
-        predictions = torch.argmax(probabilities, dim=-1)
+
+        prob_normal = probabilities[:, 0]
+        prob_anomaly = probabilities[:, 1]
+
+        # Threshold-based anomaly decision
+        predictions = (prob_anomaly >= threshold).long()
 
         all_labels.extend(labels)
         all_predictions.extend(predictions.cpu().numpy().tolist())
-        all_prob_normal.extend(probabilities[:, 0].cpu().numpy().tolist())
-        all_prob_anomaly.extend(probabilities[:, 1].cpu().numpy().tolist())
+        all_prob_normal.extend(prob_normal.cpu().numpy().tolist())
+        all_prob_anomaly.extend(prob_anomaly.cpu().numpy().tolist())
 
         progress_bar.set_postfix(
             processed=len(all_predictions),
             total=len(dataset),
+            threshold=threshold,
         )
 
     print(f"\nPrediction completed: {len(all_predictions)} samples processed.")
+    print(f"Anomaly threshold used: {threshold}")
 
     return all_labels, all_predictions, all_prob_normal, all_prob_anomaly
 
 
-def build_prediction_output_dir(config, model_path, split, datasets):
+def build_prediction_output_dir(config, model_path, split, datasets, threshold):
     model_path = os.path.normpath(model_path)
 
     model_folder_name = os.path.basename(model_path)
     parent_folder_name = os.path.basename(os.path.dirname(model_path))
     datasets_name = clean_name(datasets)
 
+    threshold_name = str(threshold).replace(".", "p")
+
     output_dir = os.path.join(
         config["output_dir"],
         "predictions",
-        f"{parent_folder_name}__{model_folder_name}__split-{split}__datasets-{datasets_name}",
+        f"{parent_folder_name}__{model_folder_name}__split-{split}__datasets-{datasets_name}__thr-{threshold_name}",
     )
 
     return output_dir
@@ -88,6 +97,7 @@ def save_text_report(
     datasets,
     model_path,
     split,
+    threshold,
 ):
     report_dict = classification_report(
         y_true,
@@ -116,7 +126,8 @@ def save_text_report(
 
         f.write(f"Model path: {model_path}\n")
         f.write(f"Split: {split}\n")
-        f.write(f"Datasets: {datasets}\n\n")
+        f.write(f"Datasets: {datasets}\n")
+        f.write(f"Anomaly threshold: {threshold}\n\n")
 
         f.write("Label Meaning\n")
         f.write("-" * 50 + "\n")
@@ -126,9 +137,9 @@ def save_text_report(
         f.write("Overall Metrics\n")
         f.write("-" * 50 + "\n")
         f.write(f"Accuracy:  {metrics['accuracy']:.6f}\n")
-        f.write(f"Precision: {metrics['precision']:.6f}  # binary precision for Class 1 / Anomaly\n")
-        f.write(f"Recall:    {metrics['recall']:.6f}  # binary recall for Class 1 / Anomaly\n")
-        f.write(f"F1-score:  {metrics['f1']:.6f}  # binary F1 for Class 1 / Anomaly\n\n")
+        f.write(f"Precision: {metrics['precision']:.6f}  # Class 1 / Anomaly\n")
+        f.write(f"Recall:    {metrics['recall']:.6f}  # Class 1 / Anomaly\n")
+        f.write(f"F1-score:  {metrics['f1']:.6f}  # Class 1 / Anomaly\n\n")
 
         f.write("Per-Class Metrics\n")
         f.write("-" * 50 + "\n")
@@ -168,10 +179,10 @@ def save_text_report(
 
         f.write("Confusion Matrix Details\n")
         f.write("-" * 50 + "\n")
-        f.write(f"True Normal predicted Normal  (TN): {tn}\n")
-        f.write(f"True Normal predicted Anomaly (FP): {fp}\n")
-        f.write(f"True Anomaly predicted Normal (FN): {fn}\n")
-        f.write(f"True Anomaly predicted Anomaly(TP): {tp}\n\n")
+        f.write(f"True Normal predicted Normal   (TN): {tn}\n")
+        f.write(f"True Normal predicted Anomaly  (FP): {fp}\n")
+        f.write(f"True Anomaly predicted Normal  (FN): {fn}\n")
+        f.write(f"True Anomaly predicted Anomaly (TP): {tp}\n\n")
 
         if per_dataset_df is not None:
             f.write("Per-Dataset Metrics\n")
@@ -188,6 +199,9 @@ def run_prediction(config_path, model_path, split, datasets):
     config = load_config(config_path)
     device = get_device()
 
+    threshold = config.get("prediction_stage", {}).get("anomaly_threshold", 0.5)
+    threshold = float(threshold)
+
     print("=" * 80)
     print("Prediction only — no training")
     print("=" * 80)
@@ -195,6 +209,7 @@ def run_prediction(config_path, model_path, split, datasets):
     print(f"Model path: {model_path}")
     print(f"Split: {split}")
     print(f"Datasets: {datasets}")
+    print(f"Anomaly threshold: {threshold}")
 
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Saved model not found: {model_path}")
@@ -238,6 +253,7 @@ def run_prediction(config_path, model_path, split, datasets):
         dataset=pred_dataset,
         batch_size=config["model"]["batch_size"],
         device=device,
+        threshold=threshold,
     )
 
     metrics = print_metrics("Prediction results", y_true, y_pred)
@@ -246,12 +262,14 @@ def run_prediction(config_path, model_path, split, datasets):
     result_df["prediction"] = y_pred
     result_df["prob_normal"] = prob_normal
     result_df["prob_anomaly"] = prob_anomaly
+    result_df["anomaly_threshold"] = threshold
 
     output_dir = build_prediction_output_dir(
         config=config,
         model_path=model_path,
         split=split,
         datasets=datasets,
+        threshold=threshold,
     )
 
     ensure_dir(output_dir)
@@ -269,12 +287,16 @@ def run_prediction(config_path, model_path, split, datasets):
     ensure_dir(per_dataset_report_dir)
 
     result_df.to_csv(predictions_path, index=False)
-    pd.DataFrame([metrics]).to_csv(metrics_path, index=False)
+
+    metrics_with_threshold = metrics.copy()
+    metrics_with_threshold["anomaly_threshold"] = threshold
+    pd.DataFrame([metrics_with_threshold]).to_csv(metrics_path, index=False)
 
     overall_report_df = get_classification_report_df(y_true, y_pred)
     overall_report_df.to_csv(classification_report_path)
 
     per_metrics_df = per_dataset_metrics(result_df)
+    per_metrics_df["anomaly_threshold"] = threshold
     per_metrics_df.to_csv(per_dataset_metrics_path, index=False)
 
     save_text_report(
@@ -286,6 +308,7 @@ def run_prediction(config_path, model_path, split, datasets):
         datasets=datasets,
         model_path=model_path,
         split=split,
+        threshold=threshold,
     )
 
     per_reports = per_dataset_classification_reports(result_df)

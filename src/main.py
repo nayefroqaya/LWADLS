@@ -65,6 +65,9 @@ def print_model_summary(model_name, metrics_df, report_df, per_dataset_df):
         print(f"F1-score:  {float(row['f1']):.4f}")
         print(f"Accuracy:  {float(row['accuracy']):.4f}")
 
+        if "anomaly_threshold" in row:
+            print(f"Threshold: {float(row['anomaly_threshold']):.4f}")
+
     if report_df is not None:
         print("\nClassification report:")
         print("-" * 50)
@@ -86,6 +89,12 @@ def run_prediction_for_saved_model(
     predict_split,
     predict_datasets,
 ):
+    config = load_yaml_config(config_path)
+
+    threshold = config.get("prediction_stage", {}).get("anomaly_threshold", 0.5)
+    threshold = float(threshold)
+    threshold_name = str(threshold).replace(".", "p")
+
     exp_name = make_experiment_name(
         model_mode,
         train_datasets,
@@ -117,7 +126,7 @@ def run_prediction_for_saved_model(
     prediction_folder = os.path.join(
         output_dir,
         "predictions",
-        f"{exp_name}__best_model__split-{predict_split}__datasets-{clean_name(predict_datasets)}",
+        f"{exp_name}__best_model__split-{predict_split}__datasets-{clean_name(predict_datasets)}__thr-{threshold_name}",
     )
 
     metrics_path = os.path.join(prediction_folder, "metrics.csv")
@@ -137,18 +146,21 @@ def save_final_comparison_report(
     val_datasets,
     internal_test_datasets,
     predict_datasets,
+    anomaly_threshold,
     summary_rows,
 ):
     summary_df = pd.DataFrame(summary_rows)
 
+    threshold_name = str(anomaly_threshold).replace(".", "p")
+
     summary_csv_path = os.path.join(
         output_dir,
-        f"final_prediction_summary__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}.csv",
+        f"final_prediction_summary__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}__thr-{threshold_name}.csv",
     )
 
     summary_txt_path = os.path.join(
         output_dir,
-        f"final_comparison__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}.txt",
+        f"final_comparison__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}__thr-{threshold_name}.txt",
     )
 
     summary_df.to_csv(summary_csv_path, index=False)
@@ -165,7 +177,8 @@ def save_final_comparison_report(
         f.write(f"Train datasets:         {train_datasets}\n")
         f.write(f"Validation datasets:    {val_datasets}\n")
         f.write(f"Internal test datasets: {internal_test_datasets}\n")
-        f.write(f"Prediction datasets:    {predict_datasets}\n\n")
+        f.write(f"Prediction datasets:    {predict_datasets}\n")
+        f.write(f"Anomaly threshold:      {anomaly_threshold}\n\n")
 
         f.write("Metric Meaning\n")
         f.write("-" * 60 + "\n")
@@ -176,7 +189,7 @@ def save_final_comparison_report(
         f.write("Model Comparison\n")
         f.write("-" * 100 + "\n")
         f.write(
-            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} {'F1-score':>12s} {'Accuracy':>12s}\n"
+            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} {'F1-score':>12s} {'Accuracy':>12s} {'Threshold':>12s}\n"
         )
         f.write("-" * 100 + "\n")
 
@@ -186,7 +199,8 @@ def save_final_comparison_report(
                 f"{float(row['precision']):12.6f} "
                 f"{float(row['recall']):12.6f} "
                 f"{float(row['f1']):12.6f} "
-                f"{float(row['accuracy']):12.6f}\n"
+                f"{float(row['accuracy']):12.6f} "
+                f"{float(row['anomaly_threshold']):12.6f}\n"
             )
 
         f.write("\n")
@@ -203,6 +217,9 @@ def save_final_comparison_report(
         )
         f.write(
             "Compare distill against student to evaluate the effect of distillation.\n"
+        )
+        f.write(
+            "Threshold tuning changes the precision/recall trade-off for Class 1 = Anomaly.\n"
         )
 
     print(f"\n{GREEN}Saved final CSV summary:{RESET}")
@@ -226,6 +243,20 @@ def main():
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
 
+    CONFIG_PATH = "../config/experiment.yaml"
+    config = load_yaml_config(CONFIG_PATH)
+
+    OUTPUT_DIR = config["output_dir"]
+
+    TRAIN_DATASETS = config["train_datasets"]
+    VAL_DATASETS = config["val_datasets"]
+    INTERNAL_TEST_DATASETS = config["test_datasets"]
+
+    prediction_stage = config.get("prediction_stage", {})
+    PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
+    PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
+    ANOMALY_THRESHOLD = float(prediction_stage.get("anomaly_threshold", 0.5))
+
     '''
 
     # ---------------- Initialize classes ----------------
@@ -245,18 +276,6 @@ def main():
     '''
 
 
-    CONFIG_PATH = "../config/experiment.yaml"
-    config = load_yaml_config(CONFIG_PATH)
-
-    OUTPUT_DIR = config["output_dir"]
-
-    TRAIN_DATASETS = config["train_datasets"]
-    VAL_DATASETS = config["val_datasets"]
-    INTERNAL_TEST_DATASETS = config["test_datasets"]
-
-    prediction_stage = config.get("prediction_stage", {})
-    PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
-    PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
 
     RUN_MLM = True
     RUN_TRAINING = True
@@ -280,6 +299,7 @@ def main():
     print("-" * 60)
     print(f"Prediction split:       {PREDICT_SPLIT}")
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
+    print(f"Anomaly threshold:      {ANOMALY_THRESHOLD}")
 
     if RUN_TRAINING:
         if RUN_MLM:
@@ -322,7 +342,6 @@ def main():
             ]
         )
 
-    #-----------------------------------
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
 
@@ -367,6 +386,7 @@ def main():
                         "recall": float(row["recall"]),
                         "f1": float(row["f1"]),
                         "accuracy": float(row["accuracy"]),
+                        "anomaly_threshold": float(row.get("anomaly_threshold", ANOMALY_THRESHOLD)),
                     }
                 )
 
@@ -377,6 +397,7 @@ def main():
                 val_datasets=VAL_DATASETS,
                 internal_test_datasets=INTERNAL_TEST_DATASETS,
                 predict_datasets=PREDICT_DATASETS,
+                anomaly_threshold=ANOMALY_THRESHOLD,
                 summary_rows=summary_rows,
             )
 
