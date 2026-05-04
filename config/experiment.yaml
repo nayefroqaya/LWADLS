@@ -19,7 +19,7 @@ test_datasets: ["BGL", "HDFS"]
 prediction_stage:
   predict_split: "test"
   predict_datasets: ["TH_1G"]
-  anomaly_threshold: 0.75
+  anomaly_threshold: 0.50
 
 split_files:
   train: "train_df.pkl"
