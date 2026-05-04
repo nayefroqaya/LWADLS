@@ -12,6 +12,13 @@ train_datasets: ["BGL", "HDFS"]
 val_datasets: ["BGL", "HDFS"]
 test_datasets: ["BGL", "HDFS"]
 
+threshold_search:
+    enabled: true
+    start: 0.01
+    end: 0.50
+    step: 0.01
+    metric: "f1"
+
 # =========================
 # Prediction stage
 # =========================
