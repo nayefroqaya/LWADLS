@@ -2,12 +2,34 @@ import os
 import time
 import torch
 import pandas as pd
-from tqdm import tqdm
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from transformers import AutoModelForMaskedLM, DataCollatorForLanguageModeling
+from tqdm import tqdm
 
 from dataset import MLMDataset
 from utils import ensure_dir
+
+
+def build_balanced_sampler(dataframe):
+    dataset_counts = dataframe["DatasetName"].value_counts().to_dict()
+
+    weights = dataframe["DatasetName"].apply(
+        lambda name: 1.0 / dataset_counts[name]
+    ).tolist()
+
+    sampler = WeightedRandomSampler(
+        weights=weights,
+        num_samples=len(weights),
+        replacement=True,
+    )
+
+    return sampler
+
+
+def remove_metadata_from_batch(batch):
+    if "DatasetName" in batch:
+        del batch["DatasetName"]
+    return batch
 
 
 def run_mlm_pretraining(
@@ -25,6 +47,7 @@ def run_mlm_pretraining(
     epochs = mlm_config["epochs"]
     lr = float(mlm_config["lr"])
     mlm_probability = float(mlm_config["mlm_probability"])
+    balance_datasets = bool(mlm_config.get("balance_datasets", False))
 
     dataset = MLMDataset(train_dataframe, tokenizer, max_length=max_length)
 
@@ -34,10 +57,13 @@ def run_mlm_pretraining(
         mlm_probability=mlm_probability,
     )
 
+    sampler = build_balanced_sampler(train_dataframe) if balance_datasets else None
+
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=(sampler is None),
+        sampler=sampler,
         collate_fn=data_collator,
     )
 
@@ -48,6 +74,11 @@ def run_mlm_pretraining(
 
     start_time = time.time()
 
+    print(f"\nMLM output directory: {output_dir}")
+    print(f"MLM model base: {model_name}")
+    print(f"Balanced MLM sampling: {balance_datasets}")
+    print("MLM datasets:", train_dataframe["DatasetName"].value_counts().to_dict())
+
     for epoch in range(epochs):
         model.train()
         total_loss = 0.0
@@ -56,9 +87,11 @@ def run_mlm_pretraining(
             loader,
             desc=f"MLM epoch {epoch + 1}/{epochs}",
             unit="batch",
+            dynamic_ncols=True,
         )
 
         for batch in progress_bar:
+            batch = remove_metadata_from_batch(batch)
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
@@ -70,13 +103,10 @@ def run_mlm_pretraining(
 
             total_loss += loss.item()
 
-            progress_bar.set_postfix(
-                {
-                    "loss": f"{loss.item():.4f}",
-                }
-            )
+            progress_bar.set_postfix(loss=f"{loss.item():.4f}")
 
-        print(f"MLM epoch {epoch + 1}/{epochs} | avg_loss={total_loss / len(loader):.4f}")
+        avg_loss = total_loss / max(len(loader), 1)
+        print(f"MLM epoch {epoch + 1}/{epochs} | loss={avg_loss:.4f}")
 
     total_time = time.time() - start_time
 
@@ -89,6 +119,8 @@ def run_mlm_pretraining(
                 "mlm_time_seconds": total_time,
                 "mlm_epochs": epochs,
                 "mlm_probability": mlm_probability,
+                "balance_datasets": balance_datasets,
+                "datasets": ",".join(train_dataframe["DatasetName"].unique()),
             }
         ]
     ).to_csv(os.path.join(output_dir, "mlm_summary.csv"), index=False)

@@ -91,10 +91,6 @@ def run_prediction_for_saved_model(
 ):
     config = load_yaml_config(config_path)
 
-    threshold = config.get("prediction_stage", {}).get("anomaly_threshold", 0.5)
-    threshold = float(threshold)
-    threshold_name = str(threshold).replace(".", "p")
-
     exp_name = make_experiment_name(
         model_mode,
         train_datasets,
@@ -123,11 +119,40 @@ def run_prediction_for_saved_model(
         ]
     )
 
-    prediction_folder = os.path.join(
-        output_dir,
-        "predictions",
-        f"{exp_name}__best_model__split-{predict_split}__datasets-{clean_name(predict_datasets)}__thr-{threshold_name}",
+    prediction_stage = config.get("prediction_stage", {})
+    threshold_search_cfg = prediction_stage.get("threshold_search", {})
+    threshold_search_enabled = bool(threshold_search_cfg.get("enabled", False))
+
+    # If threshold search is enabled, the final folder name depends on the best
+    # threshold found by predict_saved_model.py. So we search for the matching folder.
+    prediction_base = os.path.join(output_dir, "predictions")
+
+    folder_prefix = (
+        f"{exp_name}__best_model__split-{predict_split}"
+        f"__datasets-{clean_name(predict_datasets)}__thr-"
     )
+
+    prediction_folder = None
+
+    if os.path.exists(prediction_base):
+        candidates = [
+            os.path.join(prediction_base, d)
+            for d in os.listdir(prediction_base)
+            if d.startswith(folder_prefix)
+        ]
+
+        if candidates:
+            prediction_folder = max(candidates, key=os.path.getmtime)
+
+    if prediction_folder is None:
+        threshold = float(prediction_stage.get("anomaly_threshold", 0.5))
+        threshold_name = str(round(threshold, 6)).replace(".", "p")
+
+        prediction_folder = os.path.join(
+            prediction_base,
+            f"{exp_name}__best_model__split-{predict_split}"
+            f"__datasets-{clean_name(predict_datasets)}__thr-{threshold_name}",
+        )
 
     metrics_path = os.path.join(prediction_folder, "metrics.csv")
     report_path = os.path.join(prediction_folder, "classification_report.csv")
@@ -146,21 +171,20 @@ def save_final_comparison_report(
     val_datasets,
     internal_test_datasets,
     predict_datasets,
-    anomaly_threshold,
     summary_rows,
 ):
     summary_df = pd.DataFrame(summary_rows)
 
-    threshold_name = str(anomaly_threshold).replace(".", "p")
-
     summary_csv_path = os.path.join(
         output_dir,
-        f"final_prediction_summary__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}__thr-{threshold_name}.csv",
+        f"final_prediction_summary__train-{clean_name(train_datasets)}"
+        f"__predict-{clean_name(predict_datasets)}.csv",
     )
 
     summary_txt_path = os.path.join(
         output_dir,
-        f"final_comparison__train-{clean_name(train_datasets)}__predict-{clean_name(predict_datasets)}__thr-{threshold_name}.txt",
+        f"final_comparison__train-{clean_name(train_datasets)}"
+        f"__predict-{clean_name(predict_datasets)}.txt",
     )
 
     summary_df.to_csv(summary_csv_path, index=False)
@@ -177,8 +201,7 @@ def save_final_comparison_report(
         f.write(f"Train datasets:         {train_datasets}\n")
         f.write(f"Validation datasets:    {val_datasets}\n")
         f.write(f"Internal test datasets: {internal_test_datasets}\n")
-        f.write(f"Prediction datasets:    {predict_datasets}\n")
-        f.write(f"Anomaly threshold:      {anomaly_threshold}\n\n")
+        f.write(f"Prediction datasets:    {predict_datasets}\n\n")
 
         f.write("Metric Meaning\n")
         f.write("-" * 60 + "\n")
@@ -187,11 +210,12 @@ def save_final_comparison_report(
         f.write("Class 1 = Anomaly\n\n")
 
         f.write("Model Comparison\n")
-        f.write("-" * 100 + "\n")
+        f.write("-" * 115 + "\n")
         f.write(
-            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} {'F1-score':>12s} {'Accuracy':>12s} {'Threshold':>12s}\n"
+            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} "
+            f"{'F1-score':>12s} {'Accuracy':>12s} {'Threshold':>12s}\n"
         )
-        f.write("-" * 100 + "\n")
+        f.write("-" * 115 + "\n")
 
         for row in summary_rows:
             f.write(
@@ -200,7 +224,7 @@ def save_final_comparison_report(
                 f"{float(row['recall']):12.6f} "
                 f"{float(row['f1']):12.6f} "
                 f"{float(row['accuracy']):12.6f} "
-                f"{float(row['anomaly_threshold']):12.6f}\n"
+                f"{float(row.get('anomaly_threshold', 0.5)):12.6f}\n"
             )
 
         f.write("\n")
@@ -219,7 +243,7 @@ def save_final_comparison_report(
             "Compare distill against student to evaluate the effect of distillation.\n"
         )
         f.write(
-            "Threshold tuning changes the precision/recall trade-off for Class 1 = Anomaly.\n"
+            "If threshold search is enabled, the threshold shown is the best threshold selected by F1.\n"
         )
 
     print(f"\n{GREEN}Saved final CSV summary:{RESET}")
@@ -233,14 +257,6 @@ def save_final_comparison_report(
 
 
 def main():
-    warnings.filterwarnings('ignore')
-    colorama.init()
-
-    GREEN = colorama.Fore.GREEN
-    GRAY = colorama.Fore.LIGHTBLACK_EX
-    RESET = colorama.Fore.RESET
-    YELLOW = colorama.Fore.YELLOW
-
     if torch.cuda.is_available():
         print(f"{GREEN}GPU detected. Using GPU.{RESET}")
     else:
@@ -263,39 +279,12 @@ def main():
     prediction_stage = config.get("prediction_stage", {})
     PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
     PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
-    ANOMALY_THRESHOLD = float(prediction_stage.get("anomaly_threshold", 0.5))
 
-
-    '''
-    # ---------------- Initialize classes ----------------
-    DATASET='TH_1G'
-    DATASETS_FOLDER='datasets'
-    Round='1'
-    Mix_or_stable='0'
-    ALL_DATASET_CSV_PATH = f'../{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
-
-    logdata_read_obj = LogdataRead()
-    utilities_obj = utils()
-
-    # ---------------- Data as CSV ----------------
-    logdata_read_obj.read_original_data_log_from_log_to_csv(DATASET, ALL_DATASET_CSV_PATH)
-    print(f"{GREEN}Reading the file was done successfully{RESET}")
-
-    # ---------------- Dataset Splitting ----------------
-    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
-    train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
-                                                                                  Mix_or_stable)
-    exit()
-    # ---------------- Process normal data ----------------
-    '''
-
-
-
-    RUN_MLM = False
-    RUN_TRAINING = False
+    RUN_MLM = True
+    RUN_TRAINING = True
     RUN_PREDICTION = True
 
-    # For prediction only after training:
+    # For prediction only after models are trained:
     # RUN_MLM = False
     # RUN_TRAINING = False
     # RUN_PREDICTION = True
@@ -313,16 +302,39 @@ def main():
     print("-" * 60)
     print(f"Prediction split:       {PREDICT_SPLIT}")
     print(f"Prediction datasets:    {PREDICT_DATASETS}")
-    print(f"Anomaly threshold:      {ANOMALY_THRESHOLD}")
-
-
 
     if RUN_TRAINING:
         if RUN_MLM:
-            print("\n# 1. MLM pretraining")
-            run_command([sys.executable, "run_mlm.py", "--config", CONFIG_PATH])
+            mlm_cfg = config.get("mlm", {})
 
-        print("\n# 2. Teacher")
+            if mlm_cfg.get("enabled", False):
+                if mlm_cfg.get("dapt", {}).get("enabled", False):
+                    print("\n# 1. DAPT MLM pretraining on source datasets")
+                    run_command(
+                        [
+                            sys.executable,
+                            "run_mlm.py",
+                            "--config",
+                            CONFIG_PATH,
+                            "--stage",
+                            "dapt",
+                        ]
+                    )
+
+                if mlm_cfg.get("tapt", {}).get("enabled", False):
+                    print("\n# 2. TAPT MLM pretraining on target dataset")
+                    run_command(
+                        [
+                            sys.executable,
+                            "run_mlm.py",
+                            "--config",
+                            CONFIG_PATH,
+                            "--stage",
+                            "tapt",
+                        ]
+                    )
+
+        print("\n# 3. Teacher")
         run_command(
             [
                 sys.executable,
@@ -334,7 +346,7 @@ def main():
             ]
         )
 
-        print("\n# 3. Student baseline")
+        print("\n# 4. Student baseline")
         run_command(
             [
                 sys.executable,
@@ -346,7 +358,7 @@ def main():
             ]
         )
 
-        print("\n# 4. Distilled student")
+        print("\n# 5. Distilled student")
         run_command(
             [
                 sys.executable,
@@ -357,7 +369,6 @@ def main():
                 "distill",
             ]
         )
-
 
     if RUN_PREDICTION:
         print(f"\n{GREEN}Running prediction using saved models...{RESET}")
@@ -403,7 +414,7 @@ def main():
                         "recall": float(row["recall"]),
                         "f1": float(row["f1"]),
                         "accuracy": float(row["accuracy"]),
-                        "anomaly_threshold": float(row.get("anomaly_threshold", ANOMALY_THRESHOLD)),
+                        "anomaly_threshold": float(row.get("anomaly_threshold", 0.5)),
                     }
                 )
 
@@ -414,7 +425,6 @@ def main():
                 val_datasets=VAL_DATASETS,
                 internal_test_datasets=INTERNAL_TEST_DATASETS,
                 predict_datasets=PREDICT_DATASETS,
-                anomaly_threshold=ANOMALY_THRESHOLD,
                 summary_rows=summary_rows,
             )
 

@@ -30,6 +30,7 @@ class LogSequenceDataset(Dataset):
 class MLMDataset(Dataset):
     def __init__(self, dataframe, tokenizer, max_length: int):
         self.texts = dataframe["text"].astype(str).tolist()
+        self.dataset_names = dataframe["DatasetName"].astype(str).tolist()
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -45,4 +46,7 @@ class MLMDataset(Dataset):
             return_tensors="pt",
         )
 
-        return {key: value.squeeze(0) for key, value in encoding.items()}
+        item = {key: value.squeeze(0) for key, value in encoding.items()}
+        item["DatasetName"] = self.dataset_names[idx]
+
+        return item

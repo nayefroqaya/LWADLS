@@ -4,7 +4,12 @@ from transformers import AutoModelForSequenceClassification
 from data_loader import load_train_val_test_from_config
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
-from models import get_teacher_model, get_student_model, get_tokenizer
+from models import (
+    get_teacher_model,
+    get_student_model,
+    get_teacher_tokenizer,
+    get_tokenizer,
+)
 from trainer import train_classifier, evaluate_classifier
 from distillation import train_distilled_student
 from utils import (
@@ -33,6 +38,7 @@ def prepare_data(config):
         label_col=columns["label"],
         normal_values=labels["normal_values"],
         anomaly_values=labels["anomaly_values"],
+        config=config,
     )
 
     val_seq = aggregate_by_block(
@@ -43,6 +49,7 @@ def prepare_data(config):
         label_col=columns["label"],
         normal_values=labels["normal_values"],
         anomaly_values=labels["anomaly_values"],
+        config=config,
     )
 
     test_seq = aggregate_by_block(
@@ -53,6 +60,7 @@ def prepare_data(config):
         label_col=columns["label"],
         normal_values=labels["normal_values"],
         anomaly_values=labels["anomaly_values"],
+        config=config,
     )
 
     print_sequence_stats("Train", train_seq)
@@ -86,8 +94,7 @@ def main(config_path, mode):
     if mode == "teacher":
         print("\nTraining teacher model...")
 
-        teacher_model_name = config["model"]["teacher_name"]
-        tokenizer = get_tokenizer(teacher_model_name)
+        tokenizer = get_teacher_tokenizer(config)
 
         train_dataset, val_dataset, test_dataset = build_datasets(
             train_seq=train_seq,
@@ -124,8 +131,7 @@ def main(config_path, mode):
     elif mode == "student":
         print("\nTraining student without distillation...")
 
-        student_model_name = config["model"]["student_name"]
-        tokenizer = get_tokenizer(student_model_name)
+        tokenizer = get_tokenizer(config["model"]["student_name"])
 
         train_dataset, val_dataset, test_dataset = build_datasets(
             train_seq=train_seq,
@@ -171,8 +177,7 @@ def main(config_path, mode):
             teacher_path
         )
 
-        student_model_name = config["model"]["student_name"]
-        tokenizer = get_tokenizer(student_model_name)
+        tokenizer = get_tokenizer(config["model"]["student_name"])
 
         train_dataset, val_dataset, test_dataset = build_datasets(
             train_seq=train_seq,
@@ -215,17 +220,11 @@ def main(config_path, mode):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to experiment YAML file.",
-    )
-
+    parser.add_argument("--config", required=True)
     parser.add_argument(
         "--mode",
         required=True,
         choices=["teacher", "student", "distill"],
-        help="Training mode.",
     )
 
     args = parser.parse_args()

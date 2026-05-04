@@ -35,7 +35,12 @@ def predict_probabilities(model, dataset, batch_size, device):
     all_prob_normal = []
     all_prob_anomaly = []
 
-    progress_bar = tqdm(loader, desc="Predicting probabilities", unit="batch", dynamic_ncols=True)
+    progress_bar = tqdm(
+        loader,
+        desc="Predicting probabilities",
+        unit="batch",
+        dynamic_ncols=True,
+    )
 
     for batch in progress_bar:
         labels = batch["labels"].cpu().numpy().tolist()
@@ -51,6 +56,8 @@ def predict_probabilities(model, dataset, batch_size, device):
 
         progress_bar.set_postfix(processed=len(all_labels), total=len(dataset))
 
+    print(f"\nPrediction completed: {len(all_labels)} samples processed.")
+
     return all_labels, all_prob_normal, all_prob_anomaly
 
 
@@ -61,8 +68,9 @@ def apply_threshold(prob_anomaly, threshold):
 def search_best_threshold(y_true, prob_anomaly, start=0.01, end=0.50, step=0.01):
     rows = []
 
-    threshold = start
-    while threshold <= end + 1e-9:
+    threshold = float(start)
+
+    while threshold <= float(end) + 1e-9:
         y_pred = apply_threshold(prob_anomaly, threshold)
 
         precision, recall, f1, _ = precision_recall_fscore_support(
@@ -84,7 +92,7 @@ def search_best_threshold(y_true, prob_anomaly, start=0.01, end=0.50, step=0.01)
             }
         )
 
-        threshold += step
+        threshold += float(step)
 
     result_df = pd.DataFrame(rows)
     best_row = result_df.sort_values("f1", ascending=False).iloc[0]
@@ -104,7 +112,8 @@ def build_prediction_output_dir(config, model_path, split, datasets, threshold):
     output_dir = os.path.join(
         config["output_dir"],
         "predictions",
-        f"{parent_folder_name}__{model_folder_name}__split-{split}__datasets-{datasets_name}__thr-{threshold_name}",
+        f"{parent_folder_name}__{model_folder_name}__split-{split}"
+        f"__datasets-{datasets_name}__thr-{threshold_name}",
     )
 
     return output_dir
@@ -275,6 +284,7 @@ def run_prediction(config_path, model_path, split, datasets):
         label_col=columns["label"],
         normal_values=labels["normal_values"],
         anomaly_values=labels["anomaly_values"],
+        config=config,
     )
 
     print_sequence_stats("Prediction data", seq_df)
