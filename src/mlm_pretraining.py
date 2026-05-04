@@ -26,10 +26,18 @@ def build_balanced_sampler(dataframe):
     return sampler
 
 
-def remove_metadata_from_batch(batch):
-    if "DatasetName" in batch:
-        del batch["DatasetName"]
-    return batch
+def mlm_collate_fn(features, data_collator):
+    clean_features = []
+
+    for feature in features:
+        feature = dict(feature)
+
+        if "DatasetName" in feature:
+            del feature["DatasetName"]
+
+        clean_features.append(feature)
+
+    return data_collator(clean_features)
 
 
 def run_mlm_pretraining(
@@ -64,7 +72,7 @@ def run_mlm_pretraining(
         batch_size=batch_size,
         shuffle=(sampler is None),
         sampler=sampler,
-        collate_fn=data_collator,
+        collate_fn=lambda features: mlm_collate_fn(features, data_collator),
     )
 
     model = AutoModelForMaskedLM.from_pretrained(model_name)
@@ -91,7 +99,6 @@ def run_mlm_pretraining(
         )
 
         for batch in progress_bar:
-            batch = remove_metadata_from_batch(batch)
             batch = {k: v.to(device) for k, v in batch.items()}
 
             outputs = model(**batch)
