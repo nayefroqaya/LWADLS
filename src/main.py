@@ -35,12 +35,12 @@ def clean_name(items):
     return "_".join([str(x).replace(" ", "") for x in items])
 
 
-def make_experiment_name(mode, train_datasets, val_datasets, test_datasets):
+def make_experiment_name(train_datasets, val_datasets, test_datasets):
     train_name = clean_name(train_datasets)
     val_name = clean_name(val_datasets)
     test_name = clean_name(test_datasets)
 
-    return f"{mode}__train-{train_name}__val-{val_name}__test-{test_name}"
+    return f"student__train-{train_name}__val-{val_name}__test-{test_name}"
 
 
 def read_csv_if_exists(path):
@@ -51,8 +51,8 @@ def read_csv_if_exists(path):
     return pd.read_csv(path)
 
 
-def print_model_summary(model_name, metrics_df, report_df, per_dataset_df):
-    print(f"\n{GREEN}{model_name}{RESET}")
+def print_model_summary(metrics_df, report_df, per_dataset_df):
+    print(f"\n{GREEN}student{RESET}")
     print("=" * 80)
 
     if metrics_df is not None:
@@ -79,10 +79,9 @@ def print_model_summary(model_name, metrics_df, report_df, per_dataset_df):
         print(per_dataset_df)
 
 
-def run_prediction_for_saved_model(
+def run_prediction_for_student(
     config_path,
     output_dir,
-    model_mode,
     train_datasets,
     val_datasets,
     internal_test_datasets,
@@ -92,7 +91,6 @@ def run_prediction_for_saved_model(
     config = load_yaml_config(config_path)
 
     exp_name = make_experiment_name(
-        model_mode,
         train_datasets,
         val_datasets,
         internal_test_datasets,
@@ -107,7 +105,7 @@ def run_prediction_for_saved_model(
     threshold = None
 
     if config.get("threshold_tuning", {}).get("enabled", False):
-        print(f"\n{GREEN}Tuning threshold for {model_mode} using source validation...{RESET}")
+        print(f"\n{GREEN}Tuning threshold for student using source validation...{RESET}")
 
         run_command(
             [
@@ -120,7 +118,10 @@ def run_prediction_for_saved_model(
             ]
         )
 
-        tuning_datasets = config["threshold_tuning"].get("datasets", val_datasets)
+        tuning_datasets = config["threshold_tuning"].get(
+            "datasets",
+            val_datasets,
+        )
 
         threshold_file = os.path.join(
             output_dir,
@@ -132,7 +133,7 @@ def run_prediction_for_saved_model(
         best_df = pd.read_csv(threshold_file)
         threshold = float(best_df.iloc[0]["threshold"])
 
-        print(f"{GREEN}Using tuned threshold for {model_mode}: {threshold}{RESET}")
+        print(f"{GREEN}Using tuned threshold for student: {threshold}{RESET}")
 
     command = [
         sys.executable,
@@ -153,7 +154,9 @@ def run_prediction_for_saved_model(
     run_command(command)
 
     if threshold is None:
-        threshold = float(config.get("prediction_stage", {}).get("anomaly_threshold", 0.5))
+        threshold = float(
+            config.get("prediction_stage", {}).get("anomaly_threshold", 0.5)
+        )
 
     threshold_name = str(round(float(threshold), 6)).replace(".", "p")
 
@@ -166,7 +169,10 @@ def run_prediction_for_saved_model(
 
     metrics_path = os.path.join(prediction_folder, "metrics.csv")
     report_path = os.path.join(prediction_folder, "classification_report.csv")
-    per_dataset_metrics_path = os.path.join(prediction_folder, "per_dataset_metrics.csv")
+    per_dataset_metrics_path = os.path.join(
+        prediction_folder,
+        "per_dataset_metrics.csv",
+    )
 
     metrics_df = read_csv_if_exists(metrics_path)
     report_df = read_csv_if_exists(report_path)
@@ -175,35 +181,51 @@ def run_prediction_for_saved_model(
     return metrics_df, report_df, per_dataset_df
 
 
-def save_final_comparison_report(
+def save_final_student_report(
     output_dir,
     train_datasets,
     val_datasets,
     internal_test_datasets,
     predict_datasets,
-    summary_rows,
+    metrics_df,
 ):
-    summary_df = pd.DataFrame(summary_rows)
+    if metrics_df is None:
+        return
+
+    row = metrics_df.iloc[0]
+
+    summary_row = {
+        "model": "student",
+        "train_datasets": clean_name(train_datasets),
+        "val_datasets": clean_name(val_datasets),
+        "internal_test_datasets": clean_name(internal_test_datasets),
+        "prediction_datasets": clean_name(predict_datasets),
+        "precision": float(row["precision"]),
+        "recall": float(row["recall"]),
+        "f1": float(row["f1"]),
+        "accuracy": float(row["accuracy"]),
+        "anomaly_threshold": float(row.get("anomaly_threshold", 0.5)),
+    }
+
+    summary_df = pd.DataFrame([summary_row])
 
     summary_csv_path = os.path.join(
         output_dir,
-        f"final_prediction_summary__train-{clean_name(train_datasets)}"
+        f"final_student_summary__train-{clean_name(train_datasets)}"
         f"__predict-{clean_name(predict_datasets)}.csv",
     )
 
     summary_txt_path = os.path.join(
         output_dir,
-        f"final_comparison__train-{clean_name(train_datasets)}"
+        f"final_student_report__train-{clean_name(train_datasets)}"
         f"__predict-{clean_name(predict_datasets)}.txt",
     )
 
     summary_df.to_csv(summary_csv_path, index=False)
 
-    best_model = max(summary_rows, key=lambda x: float(x["f1"]))
-
     with open(summary_txt_path, "w", encoding="utf-8") as f:
         f.write("=" * 100 + "\n")
-        f.write("MODEL COMPARISON REPORT\n")
+        f.write("STUDENT-ONLY LOG ANOMALY DETECTION REPORT\n")
         f.write("=" * 100 + "\n\n")
 
         f.write("Experiment Setup\n")
@@ -213,50 +235,28 @@ def save_final_comparison_report(
         f.write(f"Internal test datasets: {internal_test_datasets}\n")
         f.write(f"Prediction datasets:    {predict_datasets}\n\n")
 
-        f.write("Metric Meaning\n")
+        f.write("Metrics for Class 1 = Anomaly\n")
         f.write("-" * 60 + "\n")
-        f.write("Precision, Recall, and F1 below are binary metrics for Class 1 = Anomaly.\n")
-        f.write("Class 0 = Normal\n")
-        f.write("Class 1 = Anomaly\n\n")
-
-        f.write("Model Comparison\n")
-        f.write("-" * 115 + "\n")
-        f.write(
-            f"{'Model':25s} {'Precision':>12s} {'Recall':>12s} "
-            f"{'F1-score':>12s} {'Accuracy':>12s} {'Threshold':>12s}\n"
-        )
-        f.write("-" * 115 + "\n")
-
-        for row in summary_rows:
-            f.write(
-                f"{row['model']:25s} "
-                f"{float(row['precision']):12.6f} "
-                f"{float(row['recall']):12.6f} "
-                f"{float(row['f1']):12.6f} "
-                f"{float(row['accuracy']):12.6f} "
-                f"{float(row.get('anomaly_threshold', 0.5)):12.6f}\n"
-            )
-
-        f.write("\n")
-        f.write("Best Model by F1-score\n")
-        f.write("-" * 60 + "\n")
-        f.write(
-            f"{best_model['model']} with F1-score = {float(best_model['f1']):.6f}\n\n"
-        )
+        f.write(f"Precision: {summary_row['precision']:.6f}\n")
+        f.write(f"Recall:    {summary_row['recall']:.6f}\n")
+        f.write(f"F1-score:  {summary_row['f1']:.6f}\n")
+        f.write(f"Accuracy:  {summary_row['accuracy']:.6f}\n")
+        f.write(f"Threshold: {summary_row['anomaly_threshold']:.6f}\n\n")
 
         f.write("Notes\n")
         f.write("-" * 60 + "\n")
         f.write(
-            "Threshold is tuned on source validation data, then applied unchanged to target test data.\n"
+            "Student-only setup uses MiniLM with DAPT/TAPT, balanced fine-tuning, "
+            "source-validation threshold tuning, and optional hybrid scoring.\n"
         )
 
     print(f"\n{GREEN}Saved final CSV summary:{RESET}")
     print(summary_csv_path)
 
-    print(f"\n{GREEN}Saved final TXT comparison report:{RESET}")
+    print(f"\n{GREEN}Saved final TXT report:{RESET}")
     print(summary_txt_path)
 
-    print(f"\n{GREEN}Final model comparison:{RESET}")
+    print(f"\n{GREEN}Final student result:{RESET}")
     print(summary_df)
 
 
@@ -282,13 +282,16 @@ def main():
 
     prediction_stage = config.get("prediction_stage", {})
     PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
-    PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
+    PREDICT_DATASETS = prediction_stage.get(
+        "predict_datasets",
+        INTERNAL_TEST_DATASETS,
+    )
 
     RUN_MLM = True
     RUN_TRAINING = True
     RUN_PREDICTION = True
 
-    # For prediction only:
+    # For prediction only after training:
     # RUN_MLM = False
     # RUN_TRAINING = False
     # RUN_PREDICTION = True
@@ -338,99 +341,43 @@ def main():
                         ]
                     )
 
-        print("\n# 3. Teacher")
+        print("\n# 3. Student fine-tuning")
         run_command(
             [
                 sys.executable,
                 "run_experiment.py",
                 "--config",
                 CONFIG_PATH,
-                "--mode",
-                "teacher",
-            ]
-        )
-
-        print("\n# 4. Student baseline")
-        run_command(
-            [
-                sys.executable,
-                "run_experiment.py",
-                "--config",
-                CONFIG_PATH,
-                "--mode",
-                "student",
-            ]
-        )
-
-        print("\n# 5. Distilled student")
-        run_command(
-            [
-                sys.executable,
-                "run_experiment.py",
-                "--config",
-                CONFIG_PATH,
-                "--mode",
-                "distill",
             ]
         )
 
     if RUN_PREDICTION:
-        print(f"\n{GREEN}Running prediction using saved models...{RESET}")
+        print(f"\n{GREEN}Running prediction using saved student model...{RESET}")
 
-        model_modes = [
-            "teacher",
-            "student",
-            "distill",
-        ]
+        metrics_df, report_df, per_dataset_df = run_prediction_for_student(
+            config_path=CONFIG_PATH,
+            output_dir=OUTPUT_DIR,
+            train_datasets=TRAIN_DATASETS,
+            val_datasets=VAL_DATASETS,
+            internal_test_datasets=INTERNAL_TEST_DATASETS,
+            predict_split=PREDICT_SPLIT,
+            predict_datasets=PREDICT_DATASETS,
+        )
 
-        summary_rows = []
+        print_model_summary(
+            metrics_df=metrics_df,
+            report_df=report_df,
+            per_dataset_df=per_dataset_df,
+        )
 
-        for model_mode in model_modes:
-            metrics_df, report_df, per_dataset_df = run_prediction_for_saved_model(
-                config_path=CONFIG_PATH,
-                output_dir=OUTPUT_DIR,
-                model_mode=model_mode,
-                train_datasets=TRAIN_DATASETS,
-                val_datasets=VAL_DATASETS,
-                internal_test_datasets=INTERNAL_TEST_DATASETS,
-                predict_split=PREDICT_SPLIT,
-                predict_datasets=PREDICT_DATASETS,
-            )
-
-            print_model_summary(
-                model_name=model_mode,
-                metrics_df=metrics_df,
-                report_df=report_df,
-                per_dataset_df=per_dataset_df,
-            )
-
-            if metrics_df is not None:
-                row = metrics_df.iloc[0]
-
-                summary_rows.append(
-                    {
-                        "model": model_mode,
-                        "train_datasets": clean_name(TRAIN_DATASETS),
-                        "val_datasets": clean_name(VAL_DATASETS),
-                        "internal_test_datasets": clean_name(INTERNAL_TEST_DATASETS),
-                        "prediction_datasets": clean_name(PREDICT_DATASETS),
-                        "precision": float(row["precision"]),
-                        "recall": float(row["recall"]),
-                        "f1": float(row["f1"]),
-                        "accuracy": float(row["accuracy"]),
-                        "anomaly_threshold": float(row.get("anomaly_threshold", 0.5)),
-                    }
-                )
-
-        if summary_rows:
-            save_final_comparison_report(
-                output_dir=OUTPUT_DIR,
-                train_datasets=TRAIN_DATASETS,
-                val_datasets=VAL_DATASETS,
-                internal_test_datasets=INTERNAL_TEST_DATASETS,
-                predict_datasets=PREDICT_DATASETS,
-                summary_rows=summary_rows,
-            )
+        save_final_student_report(
+            output_dir=OUTPUT_DIR,
+            train_datasets=TRAIN_DATASETS,
+            val_datasets=VAL_DATASETS,
+            internal_test_datasets=INTERNAL_TEST_DATASETS,
+            predict_datasets=PREDICT_DATASETS,
+            metrics_df=metrics_df,
+        )
 
     print(f"\n{GREEN}All steps completed successfully.{RESET}")
 

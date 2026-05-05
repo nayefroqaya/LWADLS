@@ -4,14 +4,8 @@ from transformers import AutoModelForSequenceClassification
 from data_loader import load_train_val_test_from_config
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
-from models import (
-    get_teacher_model,
-    get_student_model,
-    get_teacher_tokenizer,
-    get_tokenizer,
-)
+from models import get_student_model, get_student_tokenizer
 from trainer import train_classifier, evaluate_classifier
-from distillation import train_distilled_student
 from utils import (
     load_config,
     get_device,
@@ -84,143 +78,55 @@ def build_training_config(config):
     return training_config
 
 
-def main(config_path, mode):
+def main(config_path):
     set_seed(42)
 
     config = load_config(config_path)
     device = get_device()
 
     print(f"\nUsing device: {device}")
-    print(f"Mode: {mode}")
+    print("Mode: student-only")
 
     train_seq, val_seq, test_seq = prepare_data(config)
-    output_dir = make_output_dir(config, mode)
+
+    output_dir = make_output_dir(config, "student")
     training_config = build_training_config(config)
 
-    if mode == "teacher":
-        print("\nTraining teacher model...")
+    print("\nTraining student model...")
 
-        tokenizer = get_teacher_tokenizer(config)
+    tokenizer = get_student_tokenizer(config)
 
-        train_dataset, val_dataset, test_dataset = build_datasets(
-            train_seq=train_seq,
-            val_seq=val_seq,
-            test_seq=test_seq,
-            tokenizer=tokenizer,
-            max_length=config["model"]["max_length"],
-        )
+    train_dataset, val_dataset, test_dataset = build_datasets(
+        train_seq=train_seq,
+        val_seq=val_seq,
+        test_seq=test_seq,
+        tokenizer=tokenizer,
+        max_length=config["model"]["max_length"],
+    )
 
-        model = get_teacher_model(config)
+    model = get_student_model(config)
 
-        best_path = train_classifier(
-            model=model,
-            tokenizer=tokenizer,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            config=training_config,
-            output_dir=output_dir,
-            device=device,
-        )
+    best_path = train_classifier(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        config=training_config,
+        output_dir=output_dir,
+        device=device,
+    )
 
-        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
+    best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
 
-        print("\nEvaluating teacher on internal test set...")
-        evaluate_classifier(
-            model=best_model,
-            dataset=test_dataset,
-            batch_size=config["model"]["batch_size"],
-            device=device,
-            title="Teacher internal test",
-            print_output=True,
-        )
-
-    elif mode == "student":
-        print("\nTraining student without distillation...")
-
-        tokenizer = get_tokenizer(config["model"]["student_name"])
-
-        train_dataset, val_dataset, test_dataset = build_datasets(
-            train_seq=train_seq,
-            val_seq=val_seq,
-            test_seq=test_seq,
-            tokenizer=tokenizer,
-            max_length=config["model"]["max_length"],
-        )
-
-        model = get_student_model(config)
-
-        best_path = train_classifier(
-            model=model,
-            tokenizer=tokenizer,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            config=training_config,
-            output_dir=output_dir,
-            device=device,
-        )
-
-        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
-
-        print("\nEvaluating student on internal test set...")
-        evaluate_classifier(
-            model=best_model,
-            dataset=test_dataset,
-            batch_size=config["model"]["batch_size"],
-            device=device,
-            title="Student internal test",
-            print_output=True,
-        )
-
-    elif mode == "distill":
-        print("\nTraining student with distillation...")
-
-        teacher_dir = make_output_dir(config, "teacher")
-        teacher_path = f"{teacher_dir}/best_model"
-
-        print(f"Loading trained teacher from: {teacher_path}")
-
-        teacher_model = AutoModelForSequenceClassification.from_pretrained(
-            teacher_path
-        )
-
-        tokenizer = get_tokenizer(config["model"]["student_name"])
-
-        train_dataset, val_dataset, test_dataset = build_datasets(
-            train_seq=train_seq,
-            val_seq=val_seq,
-            test_seq=test_seq,
-            tokenizer=tokenizer,
-            max_length=config["model"]["max_length"],
-        )
-
-        student_model = get_student_model(config)
-
-        best_path = train_distilled_student(
-            teacher=teacher_model,
-            student=student_model,
-            tokenizer=tokenizer,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            model_config=training_config,
-            distill_config=config["distillation"],
-            output_dir=output_dir,
-            device=device,
-        )
-
-        best_model = AutoModelForSequenceClassification.from_pretrained(best_path)
-
-        print("\nEvaluating distilled student on internal test set...")
-        evaluate_classifier(
-            model=best_model,
-            dataset=test_dataset,
-            batch_size=config["model"]["batch_size"],
-            device=device,
-            title="Distilled student internal test",
-            print_output=True,
-        )
-
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
+    print("\nEvaluating student on internal test set...")
+    evaluate_classifier(
+        model=best_model,
+        dataset=test_dataset,
+        batch_size=config["model"]["batch_size"],
+        device=device,
+        title="Student internal test",
+        print_output=True,
+    )
 
 
 if __name__ == "__main__":
@@ -232,13 +138,6 @@ if __name__ == "__main__":
         help="Path to experiment YAML file.",
     )
 
-    parser.add_argument(
-        "--mode",
-        required=True,
-        choices=["teacher", "student", "distill"],
-        help="Training mode.",
-    )
-
     args = parser.parse_args()
 
-    main(args.config, args.mode)
+    main(args.config)
