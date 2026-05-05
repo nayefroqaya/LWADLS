@@ -9,7 +9,7 @@ test_datasets: ["BGL", "HDFS"]
 
 prediction_stage:
   predict_split: "test"
-  predict_datasets: ["TH_a"]
+  predict_datasets: ["TH_1G"]
   anomaly_threshold: 0.05
 
   threshold_search:
@@ -67,7 +67,7 @@ mlm:
 
   tapt:
     enabled: true
-    datasets: ["TH_a"]
+    datasets: ["TH_1G"]
 
 distillation:
   temperature: 1.0
