@@ -8,25 +8,47 @@ from mlm_pretraining import run_mlm_pretraining
 from utils import load_config, get_device, set_seed, ensure_dir, clean_name
 
 
+# --------------------------------------------------
+# Resolve MLM base model (AUTO → student model)
+# --------------------------------------------------
+def get_mlm_base_model_name(config):
+    model_name = config.get("mlm", {}).get("model_name", "auto")
+
+    if model_name is None or str(model_name).lower() == "auto":
+        model_name = config["model"]["student_name"]
+
+    return model_name
+
+
+# --------------------------------------------------
+# Output directory
+# --------------------------------------------------
 def get_mlm_output_dir(config, stage):
     train_name = clean_name(config["train_datasets"])
-    target_name = clean_name(config.get("prediction_stage", {}).get("predict_datasets", []))
+    target_name = clean_name(
+        config.get("prediction_stage", {}).get("predict_datasets", [])
+    )
+
+    model_name = clean_name(get_mlm_base_model_name(config))
 
     if stage == "dapt":
         return os.path.join(
             config["output_dir"],
-            f"mlm_dapt__train-{train_name}",
+            f"mlm_dapt__model-{model_name}__train-{train_name}",
         )
 
     if stage == "tapt":
         return os.path.join(
             config["output_dir"],
-            f"mlm_tapt__train-{train_name}__target-{target_name}",
+            f"mlm_tapt__model-{model_name}__train-{train_name}__target-{target_name}",
         )
 
     raise ValueError(f"Unknown MLM stage: {stage}")
 
 
+# --------------------------------------------------
+# Load MLM data
+# --------------------------------------------------
 def load_mlm_data(config, stage):
     if stage == "dapt":
         datasets = config["mlm"]["dapt"]["datasets"]
@@ -62,43 +84,74 @@ def load_mlm_data(config, stage):
     return seq_df
 
 
+# --------------------------------------------------
+# MAIN
+# --------------------------------------------------
 def main(config_path, stage):
     set_seed(42)
 
     config = load_config(config_path)
     device = get_device()
 
-    print(f"Using device: {device}")
-    print(f"MLM stage: {stage}")
+    print("=" * 80)
+    print("MLM PRETRAINING")
+    print("=" * 80)
+    print(f"Device: {device}")
+    print(f"Stage: {stage}")
 
     if not config.get("mlm", {}).get("enabled", False):
-        print("MLM is disabled in YAML.")
+        print("❌ MLM is disabled in YAML.")
         return
 
-    if stage == "dapt" and not config["mlm"]["dapt"].get("enabled", False):
-        print("DAPT is disabled in YAML.")
+    if stage == "dapt" and not config["mlm"].get("dapt", {}).get("enabled", False):
+        print("❌ DAPT is disabled.")
         return
 
-    if stage == "tapt" and not config["mlm"]["tapt"].get("enabled", False):
-        print("TAPT is disabled in YAML.")
+    if stage == "tapt" and not config["mlm"].get("tapt", {}).get("enabled", False):
+        print("❌ TAPT is disabled.")
         return
 
+    # --------------------------------------------------
+    # Load data
+    # --------------------------------------------------
     seq_df = load_mlm_data(config, stage)
     print_sequence_stats(f"MLM {stage.upper()} data", seq_df)
 
-    model_name = config["mlm"]["model_name"]
+    # --------------------------------------------------
+    # Resolve model
+    # --------------------------------------------------
+    model_name = get_mlm_base_model_name(config)
 
+    # TAPT uses DAPT model if exists
     if stage == "tapt":
         dapt_dir = get_mlm_output_dir(config, "dapt")
+
         if os.path.exists(dapt_dir):
+            print(f"✔ Using DAPT model for TAPT: {dapt_dir}")
             model_name = dapt_dir
-            print(f"Using DAPT model as TAPT base: {model_name}")
+        else:
+            print(f"⚠ DAPT model not found → using base model: {model_name}")
 
+    # --------------------------------------------------
+    # Tokenizer
+    # --------------------------------------------------
     tokenizer = get_tokenizer(model_name)
-    output_dir = get_mlm_output_dir(config, stage)
 
+    # --------------------------------------------------
+    # Output
+    # --------------------------------------------------
+    output_dir = get_mlm_output_dir(config, stage)
     ensure_dir(output_dir)
 
+    print("\nMLM configuration:")
+    print("-" * 60)
+    print(f"Base model: {model_name}")
+    print(f"Output dir: {output_dir}")
+    print(f"Datasets:   {len(seq_df)} samples")
+
+    # --------------------------------------------------
+    # Run MLM
+    # --------------------------------------------------
     run_mlm_pretraining(
         train_dataframe=seq_df,
         tokenizer=tokenizer,
@@ -109,9 +162,15 @@ def main(config_path, stage):
         device=device,
     )
 
+    print("\n✔ MLM completed successfully.")
 
+
+# --------------------------------------------------
+# CLI
+# --------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
     parser.add_argument("--config", required=True)
     parser.add_argument(
         "--stage",
