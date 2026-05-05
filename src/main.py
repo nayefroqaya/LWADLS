@@ -280,8 +280,8 @@ def main():
     PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
     PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
 
-    RUN_MLM = True
-    RUN_TRAINING = True
+    RUN_MLM = False
+    RUN_TRAINING = False
     RUN_PREDICTION = True
 
     # For prediction only after models are trained:
