@@ -78,6 +78,12 @@ def build_datasets(train_seq, val_seq, test_seq, tokenizer, max_length):
     return train_dataset, val_dataset, test_dataset
 
 
+def build_training_config(config):
+    training_config = config["model"].copy()
+    training_config["training"] = config.get("training", {})
+    return training_config
+
+
 def main(config_path, mode):
     set_seed(42)
 
@@ -88,8 +94,8 @@ def main(config_path, mode):
     print(f"Mode: {mode}")
 
     train_seq, val_seq, test_seq = prepare_data(config)
-
     output_dir = make_output_dir(config, mode)
+    training_config = build_training_config(config)
 
     if mode == "teacher":
         print("\nTraining teacher model...")
@@ -111,7 +117,7 @@ def main(config_path, mode):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            config=config["model"],
+            config=training_config,
             output_dir=output_dir,
             device=device,
         )
@@ -148,7 +154,7 @@ def main(config_path, mode):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            config=config["model"],
+            config=training_config,
             output_dir=output_dir,
             device=device,
         )
@@ -195,7 +201,7 @@ def main(config_path, mode):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
-            model_config=config["model"],
+            model_config=training_config,
             distill_config=config["distillation"],
             output_dir=output_dir,
             device=device,
@@ -220,11 +226,17 @@ def main(config_path, mode):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to experiment YAML file.",
+    )
+
     parser.add_argument(
         "--mode",
         required=True,
         choices=["teacher", "student", "distill"],
+        help="Training mode.",
     )
 
     args = parser.parse_args()

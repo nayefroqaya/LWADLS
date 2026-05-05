@@ -104,55 +104,65 @@ def run_prediction_for_saved_model(
         print(f"{RED}Saved model not found: {model_path}{RESET}")
         return None, None, None
 
-    run_command(
-        [
-            sys.executable,
-            "predict_saved_model.py",
-            "--config",
-            config_path,
-            "--model_path",
-            model_path,
-            "--split",
-            predict_split,
-            "--datasets",
-            *predict_datasets,
-        ]
-    )
+    threshold = None
 
-    prediction_stage = config.get("prediction_stage", {})
-    threshold_search_cfg = prediction_stage.get("threshold_search", {})
-    threshold_search_enabled = bool(threshold_search_cfg.get("enabled", False))
+    if config.get("threshold_tuning", {}).get("enabled", False):
+        print(f"\n{GREEN}Tuning threshold for {model_mode} using source validation...{RESET}")
 
-    # If threshold search is enabled, the final folder name depends on the best
-    # threshold found by predict_saved_model.py. So we search for the matching folder.
-    prediction_base = os.path.join(output_dir, "predictions")
-
-    folder_prefix = (
-        f"{exp_name}__best_model__split-{predict_split}"
-        f"__datasets-{clean_name(predict_datasets)}__thr-"
-    )
-
-    prediction_folder = None
-
-    if os.path.exists(prediction_base):
-        candidates = [
-            os.path.join(prediction_base, d)
-            for d in os.listdir(prediction_base)
-            if d.startswith(folder_prefix)
-        ]
-
-        if candidates:
-            prediction_folder = max(candidates, key=os.path.getmtime)
-
-    if prediction_folder is None:
-        threshold = float(prediction_stage.get("anomaly_threshold", 0.5))
-        threshold_name = str(round(threshold, 6)).replace(".", "p")
-
-        prediction_folder = os.path.join(
-            prediction_base,
-            f"{exp_name}__best_model__split-{predict_split}"
-            f"__datasets-{clean_name(predict_datasets)}__thr-{threshold_name}",
+        run_command(
+            [
+                sys.executable,
+                "tune_threshold.py",
+                "--config",
+                config_path,
+                "--model_path",
+                model_path,
+            ]
         )
+
+        tuning_datasets = config["threshold_tuning"].get("datasets", val_datasets)
+
+        threshold_file = os.path.join(
+            output_dir,
+            "threshold_tuning",
+            f"{exp_name}__val-{clean_name(tuning_datasets)}",
+            "best_threshold.csv",
+        )
+
+        best_df = pd.read_csv(threshold_file)
+        threshold = float(best_df.iloc[0]["threshold"])
+
+        print(f"{GREEN}Using tuned threshold for {model_mode}: {threshold}{RESET}")
+
+    command = [
+        sys.executable,
+        "predict_saved_model.py",
+        "--config",
+        config_path,
+        "--model_path",
+        model_path,
+        "--split",
+        predict_split,
+        "--datasets",
+        *predict_datasets,
+    ]
+
+    if threshold is not None:
+        command.extend(["--threshold", str(threshold)])
+
+    run_command(command)
+
+    if threshold is None:
+        threshold = float(config.get("prediction_stage", {}).get("anomaly_threshold", 0.5))
+
+    threshold_name = str(round(float(threshold), 6)).replace(".", "p")
+
+    prediction_folder = os.path.join(
+        output_dir,
+        "predictions",
+        f"{exp_name}__best_model__split-{predict_split}"
+        f"__datasets-{clean_name(predict_datasets)}__thr-{threshold_name}",
+    )
 
     metrics_path = os.path.join(prediction_folder, "metrics.csv")
     report_path = os.path.join(prediction_folder, "classification_report.csv")
@@ -237,13 +247,7 @@ def save_final_comparison_report(
         f.write("Notes\n")
         f.write("-" * 60 + "\n")
         f.write(
-            "For cross-dataset experiments, low F1 indicates domain shift/generalization difficulty.\n"
-        )
-        f.write(
-            "Compare distill against student to evaluate the effect of distillation.\n"
-        )
-        f.write(
-            "If threshold search is enabled, the threshold shown is the best threshold selected by F1.\n"
+            "Threshold is tuned on source validation data, then applied unchanged to target test data.\n"
         )
 
     print(f"\n{GREEN}Saved final CSV summary:{RESET}")
@@ -280,11 +284,11 @@ def main():
     PREDICT_SPLIT = prediction_stage.get("predict_split", "test")
     PREDICT_DATASETS = prediction_stage.get("predict_datasets", INTERNAL_TEST_DATASETS)
 
-    RUN_MLM = False
-    RUN_TRAINING = False
+    RUN_MLM = True
+    RUN_TRAINING = True
     RUN_PREDICTION = True
 
-    # For prediction only after models are trained:
+    # For prediction only:
     # RUN_MLM = False
     # RUN_TRAINING = False
     # RUN_PREDICTION = True

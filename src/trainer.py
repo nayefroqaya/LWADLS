@@ -2,12 +2,43 @@ import os
 import time
 import torch
 import pandas as pd
+import torch.nn as nn
 from tqdm import tqdm
-from torch.utils.data import DataLoader
-from transformers import get_linear_schedule_with_warmup
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
-from metrics import compute_metrics, print_metrics, per_dataset_metrics
+from metrics import compute_metrics, print_metrics
 from utils import ensure_dir, save_model_and_tokenizer
+
+
+def build_dataset_balanced_sampler(dataset):
+    dataset_names = dataset.get_dataset_names()
+
+    dataset_counts = {}
+    for name in dataset_names:
+        dataset_counts[name] = dataset_counts.get(name, 0) + 1
+
+    weights = [1.0 / dataset_counts[name] for name in dataset_names]
+
+    sampler = WeightedRandomSampler(
+        weights=weights,
+        num_samples=len(weights),
+        replacement=True,
+    )
+
+    return sampler
+
+
+def build_class_weights(config, device):
+    training_cfg = config.get("training", {})
+
+    normal_weight = float(training_cfg.get("class_weight_normal", 1.0))
+    anomaly_weight = float(training_cfg.get("class_weight_anomaly", 1.0))
+
+    return torch.tensor(
+        [normal_weight, anomaly_weight],
+        dtype=torch.float,
+        device=device,
+    )
 
 
 def train_classifier(
@@ -25,54 +56,87 @@ def train_classifier(
     epochs = config["epochs"]
     lr = float(config["lr"])
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    training_cfg = config.get("training", {})
+
+    use_dataset_balanced_sampler = training_cfg.get(
+        "use_dataset_balanced_sampler", False
+    )
+
+    use_class_weights = training_cfg.get(
+        "use_class_weights", False
+    )
+
+    if use_dataset_balanced_sampler:
+        sampler = build_dataset_balanced_sampler(train_dataset)
+        shuffle = False
+        print("Using dataset-balanced sampler for fine-tuning.")
+    else:
+        sampler = None
+        shuffle = True
+        print("Using normal shuffled sampler for fine-tuning.")
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        sampler=sampler,
+    )
 
     model.to(device)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    total_steps = len(train_loader) * epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=int(0.1 * total_steps),
-        num_training_steps=total_steps,
-    )
+    if use_class_weights:
+        class_weights = build_class_weights(config, device)
+        loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+
+        print("Using class-weighted loss.")
+        print(f"Class 0 Normal weight:  {class_weights[0].item()}")
+        print(f"Class 1 Anomaly weight: {class_weights[1].item()}")
+    else:
+        loss_fn = nn.CrossEntropyLoss()
+        print("Using standard cross-entropy loss.")
 
     best_f1 = -1.0
     best_path = os.path.join(output_dir, "best_model")
 
+    history = []
     start_time = time.time()
 
     for epoch in range(epochs):
         model.train()
+
         total_loss = 0.0
 
         progress_bar = tqdm(
             train_loader,
-            desc=f"Training epoch {epoch + 1}/{epochs}",
+            desc=f"Fine-tuning epoch {epoch + 1}/{epochs}",
             unit="batch",
+            dynamic_ncols=True,
         )
 
         for batch in progress_bar:
             batch = {k: v.to(device) for k, v in batch.items()}
 
-            outputs = model(**batch)
-            loss = outputs.loss
+            labels = batch["labels"]
+
+            outputs = model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+            )
+
+            logits = outputs.logits
+            loss = loss_fn(logits, labels)
 
             loss.backward()
             optimizer.step()
-            scheduler.step()
             optimizer.zero_grad()
 
             total_loss += loss.item()
 
-            progress_bar.set_postfix(
-                {
-                    "loss": f"{loss.item():.4f}",
-                }
-            )
+            progress_bar.set_postfix(loss=f"{loss.item():.4f}")
 
-        avg_loss = total_loss / max(len(train_loader), 1)
+        avg_train_loss = total_loss / max(len(train_loader), 1)
 
         val_metrics, _ = evaluate_classifier(
             model=model,
@@ -85,10 +149,22 @@ def train_classifier(
 
         print(
             f"Epoch {epoch + 1}/{epochs} | "
-            f"train_loss={avg_loss:.4f} | "
+            f"loss={avg_train_loss:.4f} | "
             f"val_precision={val_metrics['precision']:.4f} | "
             f"val_recall={val_metrics['recall']:.4f} | "
-            f"val_f1={val_metrics['f1']:.4f}"
+            f"val_f1={val_metrics['f1']:.4f} | "
+            f"val_accuracy={val_metrics['accuracy']:.4f}"
+        )
+
+        history.append(
+            {
+                "epoch": epoch + 1,
+                "train_loss": avg_train_loss,
+                "val_precision": val_metrics["precision"],
+                "val_recall": val_metrics["recall"],
+                "val_f1": val_metrics["f1"],
+                "val_accuracy": val_metrics["accuracy"],
+            }
         )
 
         if val_metrics["f1"] > best_f1:
@@ -97,17 +173,28 @@ def train_classifier(
 
     total_time = time.time() - start_time
 
+    pd.DataFrame(history).to_csv(
+        os.path.join(output_dir, "training_history.csv"),
+        index=False,
+    )
+
     pd.DataFrame(
         [
             {
                 "best_val_f1": best_f1,
                 "training_time_seconds": total_time,
+                "use_dataset_balanced_sampler": use_dataset_balanced_sampler,
+                "use_class_weights": use_class_weights,
             }
         ]
-    ).to_csv(os.path.join(output_dir, "training_summary.csv"), index=False)
+    ).to_csv(
+        os.path.join(output_dir, "training_summary.csv"),
+        index=False,
+    )
 
     print(f"\nTraining finished in {total_time:.2f} seconds")
     print(f"Best validation F1: {best_f1:.4f}")
+    print(f"Best model saved to: {best_path}")
 
     return best_path
 
@@ -126,66 +213,34 @@ def evaluate_classifier(
     model.to(device)
     model.eval()
 
-    all_labels = []
-    all_predictions = []
+    y_true = []
+    y_pred = []
 
     progress_bar = tqdm(
         loader,
         desc=title,
         unit="batch",
+        dynamic_ncols=True,
     )
 
     for batch in progress_bar:
         labels = batch["labels"].cpu().numpy().tolist()
-
         batch = {k: v.to(device) for k, v in batch.items()}
 
-        outputs = model(**batch)
+        outputs = model(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+        )
+
         logits = outputs.logits
+        predictions = torch.argmax(logits, dim=-1)
 
-        predictions = torch.argmax(logits, dim=-1).cpu().numpy().tolist()
+        y_true.extend(labels)
+        y_pred.extend(predictions.cpu().numpy().tolist())
 
-        all_labels.extend(labels)
-        all_predictions.extend(predictions)
-
-    metrics = compute_metrics(all_labels, all_predictions)
+    metrics = compute_metrics(y_true, y_pred)
 
     if print_output:
-        print_metrics(title, all_labels, all_predictions)
+        print_metrics(title, y_true, y_pred)
 
-    return metrics, all_predictions
-
-
-def evaluate_with_dataframe(
-    model,
-    dataframe,
-    dataset,
-    batch_size,
-    device,
-    output_dir,
-    title,
-):
-    metrics, predictions = evaluate_classifier(
-        model=model,
-        dataset=dataset,
-        batch_size=batch_size,
-        device=device,
-        title=title,
-        print_output=True,
-    )
-
-    result_df = dataframe.copy()
-    result_df["prediction"] = predictions
-
-    ensure_dir(output_dir)
-
-    result_df.to_csv(os.path.join(output_dir, "predictions.csv"), index=False)
-    pd.DataFrame([metrics]).to_csv(os.path.join(output_dir, "metrics.csv"), index=False)
-
-    per_df = per_dataset_metrics(result_df)
-    per_df.to_csv(os.path.join(output_dir, "per_dataset_metrics.csv"), index=False)
-
-    print("\nPer-dataset metrics:")
-    print(per_df)
-
-    return metrics
+    return metrics, y_pred

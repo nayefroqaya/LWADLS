@@ -6,6 +6,7 @@ class LogSequenceDataset(Dataset):
     def __init__(self, dataframe, tokenizer, max_length: int):
         self.texts = dataframe["text"].astype(str).tolist()
         self.labels = dataframe["label"].astype(int).tolist()
+        self.dataset_names = dataframe["DatasetName"].astype(str).tolist()
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -25,6 +26,12 @@ class LogSequenceDataset(Dataset):
         item["labels"] = torch.tensor(self.labels[idx], dtype=torch.long)
 
         return item
+
+    def get_labels(self):
+        return self.labels
+
+    def get_dataset_names(self):
+        return self.dataset_names
 
 
 class MLMDataset(Dataset):

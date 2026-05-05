@@ -12,12 +12,14 @@ prediction_stage:
   predict_datasets: ["TH_1G"]
   anomaly_threshold: 0.05
 
-  threshold_search:
-    enabled: true
-    start: 0.01
-    end: 0.50
-    step: 0.01
-    metric: "f1"
+threshold_tuning:
+  enabled: true
+  split: "val"
+  datasets: ["BGL", "HDFS"]
+  start: 0.01
+  end: 0.90
+  step: 0.01
+  metric: "f1"
 
 split_files:
   train: "train_df.pkl"
@@ -74,3 +76,9 @@ distillation:
   alpha: 0.9
   epochs: 3
   lr: 0.00002
+
+training:
+  use_dataset_balanced_sampler: true
+  use_class_weights: true
+  class_weight_normal: 1.0
+  class_weight_anomaly: 3.0
