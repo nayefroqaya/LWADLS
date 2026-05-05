@@ -19,9 +19,7 @@ test_datasets: ["BGL", "HDFS"]
 prediction_stage:
   predict_split: "test"
   predict_datasets: ["TH_1G"]
-
-  # fallback threshold if tuning disabled
-  anomaly_threshold: 0.5
+  anomaly_threshold: 0.5  # fallback if tuning disabled
 
 # ======================================================
 # DATA FILES
@@ -53,7 +51,6 @@ labels:
 # ======================================================
 model:
   student_name: "microsoft/MiniLM-L12-H384-uncased"
-
   max_length: 128
   batch_size: 16
   epochs: 3
@@ -64,71 +61,60 @@ model:
 # ======================================================
 mlm:
   enabled: true
-
-  # IMPORTANT → auto = use student model (MiniLM)
-  model_name: "auto"
+  model_name: "auto"   # use MiniLM automatically
 
   mlm_probability: 0.15
   batch_size: 16
   epochs: 2
   lr: 0.00005
 
-  # -------- DAPT (source domain) --------
+  # ✅ CORRECT KEY (this fixes your issue)
+  balance_datasets: true
+
+  # -------- DAPT --------
   dapt:
     enabled: true
     datasets: ["BGL", "HDFS"]
 
-  # -------- TAPT (target domain) --------
+  # -------- TAPT --------
   tapt:
     enabled: true
     datasets: ["TH_1G"]
-
-  # -------- Balanced MLM sampling --------
-  balanced_sampling: true
 
 # ======================================================
 # TRAINING IMPROVEMENTS
 # ======================================================
 training:
-  # balance datasets (BGL vs HDFS)
   use_dataset_balanced_sampler: true
-
-  # handle anomaly imbalance
   use_class_weights: true
 
-  # you can tune these
   class_weight_normal: 1.0
   class_weight_anomaly: 3.0
 
 # ======================================================
-# HYBRID SCORING (KEY IMPROVEMENT)
+# HYBRID SCORING
 # ======================================================
 hybrid_scoring:
   enabled: true
 
-  # combine classifier + embedding distance
   alpha_classifier: 0.7
   alpha_distance: 0.3
 
-  # build reference from normal logs
   reference_split: "train"
   reference_datasets: ["BGL", "HDFS"]
   normal_only: true
 
 # ======================================================
-# THRESHOLD TUNING (CRITICAL)
+# THRESHOLD TUNING
 # ======================================================
 threshold_tuning:
   enabled: true
 
-  # tune on source validation
   split: "val"
   datasets: ["BGL", "HDFS"]
 
-  # search range
   start: 0.01
   end: 0.90
   step: 0.01
 
-  # optimize anomaly detection
   metric: "f1"
