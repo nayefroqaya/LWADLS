@@ -77,8 +77,23 @@ distillation:
   epochs: 3
   lr: 0.00002
 
+
 training:
   use_dataset_balanced_sampler: true
   use_class_weights: true
   class_weight_normal: 1.0
   class_weight_anomaly: 3.0
+
+
+hybrid_scoring:
+  enabled: true
+  alpha_classifier: 0.7
+  alpha_distance: 0.3
+  reference_split: "train"
+  reference_datasets: ["BGL", "HDFS"]
+  normal_only: true
+
+
+
+
+  

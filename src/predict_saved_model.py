@@ -1,10 +1,7 @@
 import os
 import argparse
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from tqdm import tqdm
 from sklearn.metrics import classification_report, confusion_matrix
 
 from data_loader import load_split_from_dataset_folders
@@ -17,47 +14,16 @@ from metrics import (
     per_dataset_classification_reports,
 )
 from utils import load_config, get_device, ensure_dir, clean_name
+from hybrid_scoring import (
+    build_hybrid_reference,
+    extract_embeddings_and_probs,
+    compute_distance_scores,
+    compute_hybrid_scores,
+)
 
 
-@torch.no_grad()
-def predict_probabilities(model, dataset, batch_size, device):
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-    model.to(device)
-    model.eval()
-
-    all_labels = []
-    all_prob_normal = []
-    all_prob_anomaly = []
-
-    progress_bar = tqdm(
-        loader,
-        desc="Predicting probabilities",
-        unit="batch",
-        dynamic_ncols=True,
-    )
-
-    for batch in progress_bar:
-        labels = batch["labels"].cpu().numpy().tolist()
-        batch = {k: v.to(device) for k, v in batch.items()}
-
-        outputs = model(**batch)
-        logits = outputs.logits
-        probabilities = torch.softmax(logits, dim=-1)
-
-        all_labels.extend(labels)
-        all_prob_normal.extend(probabilities[:, 0].cpu().numpy().tolist())
-        all_prob_anomaly.extend(probabilities[:, 1].cpu().numpy().tolist())
-
-        progress_bar.set_postfix(processed=len(all_labels), total=len(dataset))
-
-    print(f"\nPrediction completed: {len(all_labels)} samples processed.")
-
-    return all_labels, all_prob_normal, all_prob_anomaly
-
-
-def apply_threshold(prob_anomaly, threshold):
-    return [1 if p >= threshold else 0 for p in prob_anomaly]
+def apply_threshold(scores, threshold):
+    return [1 if p >= threshold else 0 for p in scores]
 
 
 def build_prediction_output_dir(config, model_path, split, datasets, threshold):
@@ -89,6 +55,7 @@ def save_text_report(
     model_path,
     split,
     threshold,
+    hybrid_enabled,
 ):
     report_dict = classification_report(
         y_true,
@@ -118,7 +85,8 @@ def save_text_report(
         f.write(f"Model path: {model_path}\n")
         f.write(f"Split: {split}\n")
         f.write(f"Datasets: {datasets}\n")
-        f.write(f"Anomaly threshold: {threshold}\n\n")
+        f.write(f"Anomaly threshold: {threshold}\n")
+        f.write(f"Hybrid scoring enabled: {hybrid_enabled}\n\n")
 
         f.write("Label Meaning\n")
         f.write("-" * 50 + "\n")
@@ -196,6 +164,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
     if threshold_override is not None:
         threshold = float(threshold_override)
 
+    hybrid_enabled = config.get("hybrid_scoring", {}).get("enabled", False)
+
     print("=" * 80)
     print("Prediction only — no training")
     print("=" * 80)
@@ -204,6 +174,7 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
     print(f"Split: {split}")
     print(f"Datasets: {datasets}")
     print(f"Anomaly threshold: {threshold}")
+    print(f"Hybrid scoring enabled: {hybrid_enabled}")
 
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Saved model not found: {model_path}")
@@ -242,24 +213,56 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
         config["model"]["max_length"],
     )
 
-    print("\nRunning model to get probabilities...")
-    y_true, prob_normal, prob_anomaly = predict_probabilities(
+    print("\nRunning model to get probabilities and embeddings...")
+    y_true, prob_normal, prob_anomaly, embeddings = extract_embeddings_and_probs(
         model=model,
         dataset=pred_dataset,
         batch_size=config["model"]["batch_size"],
         device=device,
     )
 
-    y_pred = apply_threshold(prob_anomaly, threshold)
+    if hybrid_enabled:
+        reference = build_hybrid_reference(
+            model=model,
+            tokenizer=tokenizer,
+            config=config,
+            device=device,
+        )
+
+        distances, distance_scores = compute_distance_scores(
+            embeddings=embeddings,
+            reference=reference,
+        )
+
+        anomaly_scores = compute_hybrid_scores(
+            prob_anomaly=prob_anomaly,
+            distance_scores=distance_scores,
+            config=config,
+        )
+
+        scoring_type = "hybrid"
+    else:
+        distances = [None] * len(prob_anomaly)
+        distance_scores = [None] * len(prob_anomaly)
+        anomaly_scores = prob_anomaly
+        scoring_type = "classifier_probability"
+
+    y_pred = apply_threshold(anomaly_scores, threshold)
 
     print(f"\nFinal anomaly threshold used: {threshold}")
+    print(f"Scoring type: {scoring_type}")
+
     metrics = print_metrics("Prediction results", y_true, y_pred)
 
     result_df = seq_df.copy()
     result_df["prediction"] = y_pred
     result_df["prob_normal"] = prob_normal
     result_df["prob_anomaly"] = prob_anomaly
+    result_df["embedding_distance"] = distances
+    result_df["distance_score"] = distance_scores
+    result_df["final_anomaly_score"] = anomaly_scores
     result_df["anomaly_threshold"] = threshold
+    result_df["scoring_type"] = scoring_type
 
     output_dir = build_prediction_output_dir(
         config=config,
@@ -287,6 +290,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
 
     metrics_with_threshold = metrics.copy()
     metrics_with_threshold["anomaly_threshold"] = threshold
+    metrics_with_threshold["scoring_type"] = scoring_type
+    metrics_with_threshold["hybrid_enabled"] = hybrid_enabled
     pd.DataFrame([metrics_with_threshold]).to_csv(metrics_path, index=False)
 
     overall_report_df = get_classification_report_df(y_true, y_pred)
@@ -294,6 +299,7 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
 
     per_metrics_df = per_dataset_metrics(result_df)
     per_metrics_df["anomaly_threshold"] = threshold
+    per_metrics_df["scoring_type"] = scoring_type
     per_metrics_df.to_csv(per_dataset_metrics_path, index=False)
 
     save_text_report(
@@ -306,6 +312,7 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
         model_path=model_path,
         split=split,
         threshold=threshold,
+        hybrid_enabled=hybrid_enabled,
     )
 
     per_reports = per_dataset_classification_reports(result_df)

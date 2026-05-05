@@ -1,51 +1,31 @@
 import os
 import argparse
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from tqdm import tqdm
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 
 from data_loader import load_split_from_dataset_folders
 from aggregator import aggregate_by_block, print_sequence_stats
 from dataset import LogSequenceDataset
 from utils import load_config, get_device, ensure_dir, clean_name
+from hybrid_scoring import (
+    build_hybrid_reference,
+    extract_embeddings_and_probs,
+    compute_distance_scores,
+    compute_hybrid_scores,
+)
 
 
-@torch.no_grad()
-def get_probs(model, dataset, batch_size, device):
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-    model.to(device)
-    model.eval()
-
-    y_true = []
-    prob_anomaly = []
-
-    for batch in tqdm(loader, desc="Getting validation probabilities", unit="batch"):
-        labels = batch["labels"].cpu().numpy().tolist()
-        batch = {k: v.to(device) for k, v in batch.items()}
-
-        outputs = model(**batch)
-        probs = torch.softmax(outputs.logits, dim=-1)
-
-        y_true.extend(labels)
-        prob_anomaly.extend(probs[:, 1].cpu().numpy().tolist())
-
-    return y_true, prob_anomaly
+def apply_threshold(scores, threshold):
+    return [1 if p >= threshold else 0 for p in scores]
 
 
-def apply_threshold(prob_anomaly, threshold):
-    return [1 if p >= threshold else 0 for p in prob_anomaly]
-
-
-def search_threshold(y_true, prob_anomaly, start, end, step):
+def search_threshold(y_true, scores, start, end, step):
     rows = []
     threshold = float(start)
 
     while threshold <= float(end) + 1e-9:
-        y_pred = apply_threshold(prob_anomaly, threshold)
+        y_pred = apply_threshold(scores, threshold)
 
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true,
@@ -83,12 +63,15 @@ def run_threshold_tuning(config_path, model_path):
     split = tuning_cfg.get("split", "val")
     datasets = tuning_cfg.get("datasets", config["val_datasets"])
 
+    hybrid_enabled = config.get("hybrid_scoring", {}).get("enabled", False)
+
     print("=" * 80)
     print("THRESHOLD TUNING ON SOURCE VALIDATION DATA")
     print("=" * 80)
     print(f"Model: {model_path}")
     print(f"Split: {split}")
     print(f"Datasets: {datasets}")
+    print(f"Hybrid scoring enabled: {hybrid_enabled}")
 
     model = AutoModelForSequenceClassification.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -121,16 +104,40 @@ def run_threshold_tuning(config_path, model_path):
         config["model"]["max_length"],
     )
 
-    y_true, prob_anomaly = get_probs(
+    y_true, prob_normal, prob_anomaly, embeddings = extract_embeddings_and_probs(
         model=model,
         dataset=dataset,
         batch_size=config["model"]["batch_size"],
         device=device,
     )
 
+    if hybrid_enabled:
+        reference = build_hybrid_reference(
+            model=model,
+            tokenizer=tokenizer,
+            config=config,
+            device=device,
+        )
+
+        distances, distance_scores = compute_distance_scores(
+            embeddings=embeddings,
+            reference=reference,
+        )
+
+        scores = compute_hybrid_scores(
+            prob_anomaly=prob_anomaly,
+            distance_scores=distance_scores,
+            config=config,
+        )
+
+        scoring_type = "hybrid"
+    else:
+        scores = prob_anomaly
+        scoring_type = "classifier_probability"
+
     results_df, best = search_threshold(
         y_true=y_true,
-        prob_anomaly=prob_anomaly,
+        scores=scores,
         start=float(tuning_cfg.get("start", 0.01)),
         end=float(tuning_cfg.get("end", 0.90)),
         step=float(tuning_cfg.get("step", 0.01)),
@@ -149,7 +156,10 @@ def run_threshold_tuning(config_path, model_path):
     results_path = os.path.join(output_dir, "threshold_search_results.csv")
     best_path = os.path.join(output_dir, "best_threshold.csv")
 
+    results_df["scoring_type"] = scoring_type
     results_df.to_csv(results_path, index=False)
+
+    best["scoring_type"] = scoring_type
     pd.DataFrame([best]).to_csv(best_path, index=False)
 
     print("\nBest threshold:")
