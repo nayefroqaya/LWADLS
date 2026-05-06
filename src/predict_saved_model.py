@@ -56,6 +56,8 @@ def save_text_report(
     split,
     threshold,
     hybrid_enabled,
+    alpha_classifier,
+    alpha_distance,
 ):
     report_dict = classification_report(
         y_true,
@@ -86,7 +88,9 @@ def save_text_report(
         f.write(f"Split: {split}\n")
         f.write(f"Datasets: {datasets}\n")
         f.write(f"Anomaly threshold: {threshold}\n")
-        f.write(f"Hybrid scoring enabled: {hybrid_enabled}\n\n")
+        f.write(f"Hybrid scoring enabled: {hybrid_enabled}\n")
+        f.write(f"Alpha classifier: {alpha_classifier}\n")
+        f.write(f"Alpha distance: {alpha_distance}\n\n")
 
         f.write("Label Meaning\n")
         f.write("-" * 50 + "\n")
@@ -111,20 +115,6 @@ def save_text_report(
             f.write(f"  Recall:    {class_metrics['recall']:.6f}\n")
             f.write(f"  F1-score:  {class_metrics['f1-score']:.6f}\n")
             f.write(f"  Support:   {int(class_metrics['support'])}\n\n")
-
-        f.write("Macro Average\n")
-        f.write("-" * 50 + "\n")
-        f.write(f"Precision: {report_dict['macro avg']['precision']:.6f}\n")
-        f.write(f"Recall:    {report_dict['macro avg']['recall']:.6f}\n")
-        f.write(f"F1-score:  {report_dict['macro avg']['f1-score']:.6f}\n")
-        f.write(f"Support:   {int(report_dict['macro avg']['support'])}\n\n")
-
-        f.write("Weighted Average\n")
-        f.write("-" * 50 + "\n")
-        f.write(f"Precision: {report_dict['weighted avg']['precision']:.6f}\n")
-        f.write(f"Recall:    {report_dict['weighted avg']['recall']:.6f}\n")
-        f.write(f"F1-score:  {report_dict['weighted avg']['f1-score']:.6f}\n")
-        f.write(f"Support:   {int(report_dict['weighted avg']['support'])}\n\n")
 
         f.write("Full Classification Report\n")
         f.write("-" * 50 + "\n")
@@ -154,17 +144,31 @@ def save_text_report(
     print(f"\nSaved readable report: {file_path}")
 
 
-def run_prediction(config_path, model_path, split, datasets, threshold_override=None):
+def run_prediction(
+    config_path,
+    model_path,
+    split,
+    datasets,
+    threshold_override=None,
+    alpha_classifier_override=None,
+):
     config = load_config(config_path)
     device = get_device()
 
     prediction_stage = config.get("prediction_stage", {})
-    threshold = float(prediction_stage.get("anomaly_threshold", 0.5))
+    hybrid_cfg = config.get("hybrid_scoring", {})
 
+    threshold = float(prediction_stage.get("anomaly_threshold", 0.5))
     if threshold_override is not None:
         threshold = float(threshold_override)
 
-    hybrid_enabled = config.get("hybrid_scoring", {}).get("enabled", False)
+    hybrid_enabled = bool(hybrid_cfg.get("enabled", False))
+
+    alpha_classifier = float(hybrid_cfg.get("alpha_classifier", 1.0))
+    if alpha_classifier_override is not None:
+        alpha_classifier = float(alpha_classifier_override)
+
+    alpha_distance = 1.0 - alpha_classifier
 
     print("=" * 80)
     print("Prediction only — no training")
@@ -175,6 +179,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
     print(f"Datasets: {datasets}")
     print(f"Anomaly threshold: {threshold}")
     print(f"Hybrid scoring enabled: {hybrid_enabled}")
+    print(f"Alpha classifier: {alpha_classifier}")
+    print(f"Alpha distance: {alpha_distance}")
 
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Saved model not found: {model_path}")
@@ -237,7 +243,7 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
         anomaly_scores = compute_hybrid_scores(
             prob_anomaly=prob_anomaly,
             distance_scores=distance_scores,
-            config=config,
+            alpha_classifier=alpha_classifier,
         )
 
         scoring_type = "hybrid"
@@ -262,6 +268,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
     result_df["distance_score"] = distance_scores
     result_df["final_anomaly_score"] = anomaly_scores
     result_df["anomaly_threshold"] = threshold
+    result_df["alpha_classifier"] = alpha_classifier
+    result_df["alpha_distance"] = alpha_distance
     result_df["scoring_type"] = scoring_type
 
     output_dir = build_prediction_output_dir(
@@ -290,6 +298,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
 
     metrics_with_threshold = metrics.copy()
     metrics_with_threshold["anomaly_threshold"] = threshold
+    metrics_with_threshold["alpha_classifier"] = alpha_classifier
+    metrics_with_threshold["alpha_distance"] = alpha_distance
     metrics_with_threshold["scoring_type"] = scoring_type
     metrics_with_threshold["hybrid_enabled"] = hybrid_enabled
     pd.DataFrame([metrics_with_threshold]).to_csv(metrics_path, index=False)
@@ -299,6 +309,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
 
     per_metrics_df = per_dataset_metrics(result_df)
     per_metrics_df["anomaly_threshold"] = threshold
+    per_metrics_df["alpha_classifier"] = alpha_classifier
+    per_metrics_df["alpha_distance"] = alpha_distance
     per_metrics_df["scoring_type"] = scoring_type
     per_metrics_df.to_csv(per_dataset_metrics_path, index=False)
 
@@ -313,6 +325,8 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
         split=split,
         threshold=threshold,
         hybrid_enabled=hybrid_enabled,
+        alpha_classifier=alpha_classifier,
+        alpha_distance=alpha_distance,
     )
 
     per_reports = per_dataset_classification_reports(result_df)
@@ -323,12 +337,6 @@ def run_prediction(config_path, model_path, split, datasets, threshold_override=
             f"classification_report_{dataset_name}.csv",
         )
         report_df.to_csv(report_path)
-
-    print("\nOverall classification report:")
-    print(overall_report_df)
-
-    print("\nPer-dataset metrics:")
-    print(per_metrics_df)
 
     print("\nSaved files:")
     print(f"Predictions:                   {predictions_path}")
@@ -350,12 +358,8 @@ def main():
     parser.add_argument("--model_path", required=True)
     parser.add_argument("--split", required=True, choices=["train", "val", "test"])
     parser.add_argument("--datasets", nargs="+", required=True)
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=None,
-        help="Optional threshold override from validation tuning.",
-    )
+    parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument("--alpha_classifier", type=float, default=None)
 
     args = parser.parse_args()
 
@@ -365,6 +369,7 @@ def main():
         split=args.split,
         datasets=args.datasets,
         threshold_override=args.threshold,
+        alpha_classifier_override=args.alpha_classifier,
     )
 
 

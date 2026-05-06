@@ -31,7 +31,6 @@ def extract_embeddings_and_probs(model, dataset, batch_size, device):
 
     for batch in tqdm(loader, desc="Extracting embeddings/probabilities", unit="batch"):
         labels = batch["labels"].cpu().numpy().tolist()
-
         batch = {k: v.to(device) for k, v in batch.items()}
 
         outputs = model(
@@ -41,9 +40,7 @@ def extract_embeddings_and_probs(model, dataset, batch_size, device):
             return_dict=True,
         )
 
-        logits = outputs.logits
-        probs = torch.softmax(logits, dim=-1)
-
+        probs = torch.softmax(outputs.logits, dim=-1)
         last_hidden = outputs.hidden_states[-1]
         embeddings = mean_pool_last_hidden(last_hidden, batch["attention_mask"])
 
@@ -91,7 +88,30 @@ def load_reference_dataframe(config):
     return seq_df
 
 
+def compute_dataset_balanced_centroid(embeddings, dataset_names):
+    dataset_names = np.asarray(dataset_names)
+    unique_datasets = sorted(set(dataset_names.tolist()))
+
+    dataset_centroids = []
+
+    for dataset_name in unique_datasets:
+        idx = np.where(dataset_names == dataset_name)[0]
+        dataset_embeddings = embeddings[idx]
+        dataset_centroid = dataset_embeddings.mean(axis=0)
+        dataset_centroids.append(dataset_centroid)
+
+        print(
+            f"Reference centroid component: {dataset_name} | "
+            f"samples={len(dataset_embeddings)}"
+        )
+
+    centroid = np.stack(dataset_centroids, axis=0).mean(axis=0)
+
+    return centroid
+
+
 def build_hybrid_reference(model, tokenizer, config, device):
+    hybrid_cfg = config.get("hybrid_scoring", {})
     ref_df = load_reference_dataframe(config)
 
     ref_dataset = LogSequenceDataset(
@@ -107,7 +127,15 @@ def build_hybrid_reference(model, tokenizer, config, device):
         device=device,
     )
 
-    centroid = ref_embeddings.mean(axis=0)
+    dataset_balanced_centroid = hybrid_cfg.get("dataset_balanced_centroid", True)
+
+    if dataset_balanced_centroid:
+        centroid = compute_dataset_balanced_centroid(
+            embeddings=ref_embeddings,
+            dataset_names=ref_df["DatasetName"].astype(str).tolist(),
+        )
+    else:
+        centroid = ref_embeddings.mean(axis=0)
 
     distances = np.linalg.norm(ref_embeddings - centroid, axis=1)
 
@@ -118,13 +146,15 @@ def build_hybrid_reference(model, tokenizer, config, device):
         "centroid": centroid,
         "distance_mean": distance_mean,
         "distance_std": distance_std,
+        "dataset_balanced_centroid": dataset_balanced_centroid,
     }
 
     print("\nHybrid reference built")
     print("-" * 60)
-    print(f"Reference samples: {len(ref_embeddings)}")
-    print(f"Distance mean:     {distance_mean:.6f}")
-    print(f"Distance std:      {distance_std:.6f}")
+    print(f"Reference samples:          {len(ref_embeddings)}")
+    print(f"Dataset-balanced centroid:  {dataset_balanced_centroid}")
+    print(f"Distance mean:              {distance_mean:.6f}")
+    print(f"Distance std:               {distance_std:.6f}")
 
     return reference
 
@@ -139,18 +169,19 @@ def compute_distance_scores(embeddings, reference):
     std = reference["distance_std"]
 
     distances = np.linalg.norm(embeddings - centroid, axis=1)
-
     z_scores = (distances - mean) / std
     distance_scores = sigmoid(z_scores)
 
     return distances.tolist(), distance_scores.tolist()
 
 
-def compute_hybrid_scores(prob_anomaly, distance_scores, config):
-    hybrid_cfg = config.get("hybrid_scoring", {})
-
-    alpha_classifier = float(hybrid_cfg.get("alpha_classifier", 0.7))
-    alpha_distance = float(hybrid_cfg.get("alpha_distance", 0.3))
+def compute_hybrid_scores(
+    prob_anomaly,
+    distance_scores,
+    alpha_classifier,
+):
+    alpha_classifier = float(alpha_classifier)
+    alpha_distance = 1.0 - alpha_classifier
 
     prob_anomaly = np.asarray(prob_anomaly)
     distance_scores = np.asarray(distance_scores)

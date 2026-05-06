@@ -103,9 +103,10 @@ def run_prediction_for_student(
         return None, None, None
 
     threshold = None
+    alpha_classifier = None
 
     if config.get("threshold_tuning", {}).get("enabled", False):
-        print(f"\n{GREEN}Tuning threshold for student using source validation...{RESET}")
+        print(f"\n{GREEN}Tuning threshold + alpha for student using source validation...{RESET}")
 
         run_command(
             [
@@ -131,9 +132,12 @@ def run_prediction_for_student(
         )
 
         best_df = pd.read_csv(threshold_file)
-        threshold = float(best_df.iloc[0]["threshold"])
 
-        print(f"{GREEN}Using tuned threshold for student: {threshold}{RESET}")
+        threshold = float(best_df.iloc[0]["threshold"])
+        alpha_classifier = float(best_df.iloc[0]["alpha_classifier"])
+
+        print(f"{GREEN}Using tuned threshold: {threshold}{RESET}")
+        print(f"{GREEN}Using tuned alpha_classifier: {alpha_classifier}{RESET}")
 
     command = [
         sys.executable,
@@ -150,6 +154,9 @@ def run_prediction_for_student(
 
     if threshold is not None:
         command.extend(["--threshold", str(threshold)])
+
+    if alpha_classifier is not None:
+        command.extend(["--alpha_classifier", str(alpha_classifier)])
 
     run_command(command)
 
@@ -179,8 +186,6 @@ def run_prediction_for_student(
     per_dataset_df = read_csv_if_exists(per_dataset_metrics_path)
 
     return metrics_df, report_df, per_dataset_df
-
-
 def save_final_student_report(
     output_dir,
     train_datasets,

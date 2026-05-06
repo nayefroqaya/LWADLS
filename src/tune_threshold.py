@@ -20,38 +20,84 @@ def apply_threshold(scores, threshold):
     return [1 if p >= threshold else 0 for p in scores]
 
 
-def search_threshold(y_true, scores, start, end, step):
+def evaluate_scores(y_true, scores, threshold):
+    y_pred = apply_threshold(scores, threshold)
+
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        average="binary",
+        zero_division=0,
+    )
+
+    accuracy = accuracy_score(y_true, y_pred)
+
+    return {
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "accuracy": float(accuracy),
+    }
+
+
+def search_threshold_and_alpha(
+    y_true,
+    prob_anomaly,
+    distance_scores,
+    hybrid_enabled,
+    threshold_start,
+    threshold_end,
+    threshold_step,
+    alpha_classifier_values,
+):
     rows = []
-    threshold = float(start)
 
-    while threshold <= float(end) + 1e-9:
-        y_pred = apply_threshold(scores, threshold)
+    if not hybrid_enabled:
+        alpha_classifier_values = [1.0]
 
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            y_true,
-            y_pred,
-            average="binary",
-            zero_division=0,
-        )
+    for alpha_classifier in alpha_classifier_values:
+        alpha_classifier = float(alpha_classifier)
+        alpha_distance = 1.0 - alpha_classifier
 
-        accuracy = accuracy_score(y_true, y_pred)
+        if hybrid_enabled:
+            scores = compute_hybrid_scores(
+                prob_anomaly=prob_anomaly,
+                distance_scores=distance_scores,
+                alpha_classifier=alpha_classifier,
+            )
+            scoring_type = "hybrid"
+        else:
+            scores = prob_anomaly
+            scoring_type = "classifier_probability"
 
-        rows.append(
-            {
-                "threshold": float(threshold),
-                "precision": float(precision),
-                "recall": float(recall),
-                "f1": float(f1),
-                "accuracy": float(accuracy),
-            }
-        )
+        threshold = float(threshold_start)
 
-        threshold += float(step)
+        while threshold <= float(threshold_end) + 1e-9:
+            metrics = evaluate_scores(
+                y_true=y_true,
+                scores=scores,
+                threshold=threshold,
+            )
 
-    df = pd.DataFrame(rows)
-    best = df.sort_values("f1", ascending=False).iloc[0].to_dict()
+            rows.append(
+                {
+                    "threshold": float(threshold),
+                    "alpha_classifier": alpha_classifier,
+                    "alpha_distance": alpha_distance,
+                    "precision": metrics["precision"],
+                    "recall": metrics["recall"],
+                    "f1": metrics["f1"],
+                    "accuracy": metrics["accuracy"],
+                    "scoring_type": scoring_type,
+                }
+            )
 
-    return df, best
+            threshold += float(threshold_step)
+
+    results_df = pd.DataFrame(rows)
+    best_row = results_df.sort_values("f1", ascending=False).iloc[0].to_dict()
+
+    return results_df, best_row
 
 
 def run_threshold_tuning(config_path, model_path):
@@ -59,19 +105,39 @@ def run_threshold_tuning(config_path, model_path):
     device = get_device()
 
     tuning_cfg = config.get("threshold_tuning", {})
+    hybrid_cfg = config.get("hybrid_scoring", {})
 
     split = tuning_cfg.get("split", "val")
     datasets = tuning_cfg.get("datasets", config["val_datasets"])
 
-    hybrid_enabled = config.get("hybrid_scoring", {}).get("enabled", False)
+    hybrid_enabled = bool(hybrid_cfg.get("enabled", False))
+
+    threshold_start = float(tuning_cfg.get("threshold_start", tuning_cfg.get("start", 0.01)))
+    threshold_end = float(tuning_cfg.get("threshold_end", tuning_cfg.get("end", 0.90)))
+    threshold_step = float(tuning_cfg.get("threshold_step", tuning_cfg.get("step", 0.01)))
+
+    alpha_search_cfg = tuning_cfg.get("alpha_search", {})
+    alpha_search_enabled = bool(alpha_search_cfg.get("enabled", True))
+
+    if hybrid_enabled and alpha_search_enabled:
+        alpha_classifier_values = alpha_search_cfg.get(
+            "alpha_classifier_values",
+            [1.0, 0.9, 0.8, 0.7, 0.6],
+        )
+    else:
+        alpha_classifier_values = [
+            float(hybrid_cfg.get("alpha_classifier", 1.0))
+        ]
 
     print("=" * 80)
-    print("THRESHOLD TUNING ON SOURCE VALIDATION DATA")
+    print("THRESHOLD + ALPHA TUNING ON SOURCE VALIDATION DATA")
     print("=" * 80)
     print(f"Model: {model_path}")
     print(f"Split: {split}")
     print(f"Datasets: {datasets}")
     print(f"Hybrid scoring enabled: {hybrid_enabled}")
+    print(f"Threshold range: {threshold_start} to {threshold_end}, step={threshold_step}")
+    print(f"Alpha classifier values: {alpha_classifier_values}")
 
     model = AutoModelForSequenceClassification.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -123,24 +189,18 @@ def run_threshold_tuning(config_path, model_path):
             embeddings=embeddings,
             reference=reference,
         )
-
-        scores = compute_hybrid_scores(
-            prob_anomaly=prob_anomaly,
-            distance_scores=distance_scores,
-            config=config,
-        )
-
-        scoring_type = "hybrid"
     else:
-        scores = prob_anomaly
-        scoring_type = "classifier_probability"
+        distance_scores = [0.0] * len(prob_anomaly)
 
-    results_df, best = search_threshold(
+    results_df, best = search_threshold_and_alpha(
         y_true=y_true,
-        scores=scores,
-        start=float(tuning_cfg.get("start", 0.01)),
-        end=float(tuning_cfg.get("end", 0.90)),
-        step=float(tuning_cfg.get("step", 0.01)),
+        prob_anomaly=prob_anomaly,
+        distance_scores=distance_scores,
+        hybrid_enabled=hybrid_enabled,
+        threshold_start=threshold_start,
+        threshold_end=threshold_end,
+        threshold_step=threshold_step,
+        alpha_classifier_values=alpha_classifier_values,
     )
 
     parent_name = os.path.basename(os.path.dirname(os.path.normpath(model_path)))
@@ -153,23 +213,20 @@ def run_threshold_tuning(config_path, model_path):
 
     ensure_dir(output_dir)
 
-    results_path = os.path.join(output_dir, "threshold_search_results.csv")
+    results_path = os.path.join(output_dir, "threshold_alpha_search_results.csv")
     best_path = os.path.join(output_dir, "best_threshold.csv")
 
-    results_df["scoring_type"] = scoring_type
     results_df.to_csv(results_path, index=False)
-
-    best["scoring_type"] = scoring_type
     pd.DataFrame([best]).to_csv(best_path, index=False)
 
-    print("\nBest threshold:")
+    print("\nBest threshold + alpha:")
     print(best)
 
     print("\nSaved:")
     print(results_path)
     print(best_path)
 
-    return best["threshold"]
+    return best
 
 
 def main():
