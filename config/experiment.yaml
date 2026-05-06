@@ -97,8 +97,8 @@ training:
 hybrid_scoring:
   enabled: true
 
-  alpha_classifier: 0.7
-  alpha_distance: 0.3
+  alpha_classifier: 0.9
+  alpha_distance: 0.1
 
   reference_split: "train"
   reference_datasets: ["BGL", "HDFS"]
@@ -113,8 +113,8 @@ threshold_tuning:
   split: "val"
   datasets: ["BGL", "HDFS"]
 
-  start: 0.01
-  end: 0.90
+  start: 0.30
+  end: 0.95
   step: 0.01
 
   metric: "f1"
