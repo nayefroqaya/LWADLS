@@ -4,13 +4,6 @@
 #   1) in_domain
 #   2) fewshot_target_adaptation
 # ======================================================
-
-experiment:
-  name: "AdaLogSLM_BGL_HDFS_to_TH_1G"
-  mode: "fewshot_target_adaptation"   # options: ["in_domain", "fewshot_target_adaptation"]
-  seed: 42
-  output_dir: "../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
-
 # ======================================================
 # PATHS
 # ======================================================
@@ -206,3 +199,15 @@ posthoc_calibration:
   grid_results_file: "posthoc_grid_search_results.csv"
   best_report_file: "posthoc_best_report.txt"
   best_predictions_file: "posthoc_best_predictions.csv"
+
+experiment:
+  name: "AdaLogSLM_BGL_HDFS_to_TH_1G"
+  mode: "fewshot_target_adaptation"
+  stage: "predict"   # options: ["train", "predict", "posthoc_only", "train_predict"]
+  seed: 42
+  output_dir: "../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
+
+
+#experiment:
+#  mode: "fewshot_target_adaptation"
+#  stage: "train"   or "predict" or "posthoc_only" or  for full pile : "train_predict"
