@@ -15,7 +15,7 @@ experiment:
 # PATHS
 # ======================================================
 paths:
-  data_dir: "../datasets"
+  data_dir: "datasets"
   dataset_path_template: "{dataset}/1_{dataset}_Splitted_Datasets"
 
 split_files:
