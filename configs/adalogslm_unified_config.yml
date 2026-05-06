@@ -208,7 +208,7 @@ posthoc_calibration:
 experiment:
   name: "AdaLogSLM_TH_1G_HDFS_to_BGL"                        #"AdaLogSLM_BGL_HDFS_to_TH_1G"
   mode: "fewshot_target_adaptation"
-  stage: "train"   # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "predict"   # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_TH_1G_HDFS_to_BGL"      #"../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
 
