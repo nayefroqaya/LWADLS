@@ -190,10 +190,13 @@ posthoc_calibration:
   selection_metric: "macro_f1"
 
   # alpha_mlm + beta_center should sum to 1.
-  alpha_mlm_values: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90]
+ # alpha_mlm_values: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90]
+  alpha_mlm_values: [ 0.40, 0.425, 0.45, 0.475, 0.50, 0.525, 0.55, 0.575, 0.60 ]
+
 
   # Percentile threshold search.
-  percentile_values: [80, 82, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95]
+ # percentile_values: [80, 82, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95]
+  percentile_values: [80, 80.5, 81, 81.5, 82, 82.5, 83, 83.5, 84, 84.5, 85]
 
   save_grid_results: true
   grid_results_file: "posthoc_grid_search_results.csv"
