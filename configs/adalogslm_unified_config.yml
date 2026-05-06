@@ -210,11 +210,11 @@ posthoc_calibration:
   best_predictions_file: "posthoc_best_predictions.csv"
 
 experiment:
-  name: "AdaLogSLM_TH_1G_HDFS_to_BGL"                        #"AdaLogSLM_BGL_HDFS_to_TH_1G"
+  name: "AdaLogSLM_BGL_HDFS_to_TH_1G"  #"AdaLogSLM_TH_1G_HDFS_to_BGL"                        #"AdaLogSLM_BGL_HDFS_to_TH_1G"
   mode: "fewshot_target_adaptation"
   stage: "posthoc_only"   # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_TH_1G_HDFS_to_BGL"      #"../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
+  output_dir: "../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G" #"../outputs/AdaLogSLM_TH_1G_HDFS_to_BGL"      #"../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
 
 
 #experiment:
