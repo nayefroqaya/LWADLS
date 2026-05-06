@@ -40,6 +40,71 @@ def evaluate_scores(y_true, scores, threshold):
     }
 
 
+def select_best_row(results_df, metric, min_recall):
+    metric = str(metric).lower()
+
+    if metric == "f1":
+        best_row = results_df.sort_values(
+            ["f1", "precision", "recall"],
+            ascending=[False, False, False],
+        ).iloc[0]
+
+        return best_row.to_dict()
+
+    if metric == "precision_at_recall":
+        valid_df = results_df[results_df["recall"] >= float(min_recall)].copy()
+
+        if len(valid_df) == 0:
+            print(
+                "\nWARNING: No threshold satisfies min_recall. "
+                "Falling back to best F1."
+            )
+
+            best_row = results_df.sort_values(
+                ["f1", "precision", "recall"],
+                ascending=[False, False, False],
+            ).iloc[0]
+
+            return best_row.to_dict()
+
+        best_row = valid_df.sort_values(
+            ["precision", "f1", "recall"],
+            ascending=[False, False, False],
+        ).iloc[0]
+
+        return best_row.to_dict()
+
+    if metric == "recall_at_precision":
+        min_precision = 0.30
+
+        valid_df = results_df[results_df["precision"] >= min_precision].copy()
+
+        if len(valid_df) == 0:
+            print(
+                "\nWARNING: No threshold satisfies min_precision. "
+                "Falling back to best F1."
+            )
+
+            best_row = results_df.sort_values(
+                ["f1", "precision", "recall"],
+                ascending=[False, False, False],
+            ).iloc[0]
+
+            return best_row.to_dict()
+
+        best_row = valid_df.sort_values(
+            ["recall", "f1", "precision"],
+            ascending=[False, False, False],
+        ).iloc[0]
+
+        return best_row.to_dict()
+
+    raise ValueError(
+        f"Unknown threshold tuning metric: {metric}. "
+        "Use 'f1' or 'precision_at_recall'."
+    )
+
+
 def search_threshold_and_alpha(
     y_true,
     prob_anomaly,
@@ -49,6 +114,8 @@ def search_threshold_and_alpha(
     threshold_end,
     threshold_step,
     alpha_classifier_values,
+    metric,
+    min_recall,
 ):
     rows = []
 
@@ -89,13 +156,19 @@ def search_threshold_and_alpha(
                     "f1": metrics["f1"],
                     "accuracy": metrics["accuracy"],
                     "scoring_type": scoring_type,
+                    "selection_metric": metric,
+                    "min_recall": min_recall,
                 }
             )
 
             threshold += float(threshold_step)
 
     results_df = pd.DataFrame(rows)
-    best_row = results_df.sort_values("f1", ascending=False).iloc[0].to_dict()
+    best_row = select_best_row(
+        results_df=results_df,
+        metric=metric,
+        min_recall=min_recall,
+    )
 
     return results_df, best_row
 
@@ -112,9 +185,18 @@ def run_threshold_tuning(config_path, model_path):
 
     hybrid_enabled = bool(hybrid_cfg.get("enabled", False))
 
-    threshold_start = float(tuning_cfg.get("threshold_start", tuning_cfg.get("start", 0.01)))
-    threshold_end = float(tuning_cfg.get("threshold_end", tuning_cfg.get("end", 0.90)))
-    threshold_step = float(tuning_cfg.get("threshold_step", tuning_cfg.get("step", 0.01)))
+    threshold_start = float(
+        tuning_cfg.get("threshold_start", tuning_cfg.get("start", 0.01))
+    )
+    threshold_end = float(
+        tuning_cfg.get("threshold_end", tuning_cfg.get("end", 0.90))
+    )
+    threshold_step = float(
+        tuning_cfg.get("threshold_step", tuning_cfg.get("step", 0.01))
+    )
+
+    metric = tuning_cfg.get("metric", "f1")
+    min_recall = float(tuning_cfg.get("min_recall", 0.80))
 
     alpha_search_cfg = tuning_cfg.get("alpha_search", {})
     alpha_search_enabled = bool(alpha_search_cfg.get("enabled", True))
@@ -138,6 +220,8 @@ def run_threshold_tuning(config_path, model_path):
     print(f"Hybrid scoring enabled: {hybrid_enabled}")
     print(f"Threshold range: {threshold_start} to {threshold_end}, step={threshold_step}")
     print(f"Alpha classifier values: {alpha_classifier_values}")
+    print(f"Selection metric: {metric}")
+    print(f"Minimum recall constraint: {min_recall}")
 
     model = AutoModelForSequenceClassification.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -201,6 +285,8 @@ def run_threshold_tuning(config_path, model_path):
         threshold_end=threshold_end,
         threshold_step=threshold_step,
         alpha_classifier_values=alpha_classifier_values,
+        metric=metric,
+        min_recall=min_recall,
     )
 
     parent_name = os.path.basename(os.path.dirname(os.path.normpath(model_path)))
