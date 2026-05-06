@@ -20,6 +20,7 @@ from .scoring import (
     calibrate_threshold,
     evaluate_scores,
     save_classification_report_files,
+    run_posthoc_grid_search,
 )
 
 
@@ -187,6 +188,14 @@ def run_in_domain(cfg, config_path: str):
         )
         print("[Predictions saved]")
 
+    # Post-hoc calibration / grid search without retraining.
+    posthoc_best, posthoc_predictions = run_posthoc_grid_search(
+        score_df=test_scores,
+        cfg=cfg,
+        output_dir=out_dir,
+        normal_label=0,
+    )
+
     if cfg.get("outputs", {}).get("save_model", True):
         print("[Saving model]")
         torch.save(model.state_dict(), out_dir / "model.pt")
@@ -204,6 +213,7 @@ def run_in_domain(cfg, config_path: str):
             "mode": "in_domain",
             "history": history,
             "metrics": metrics,
+            "posthoc_best": posthoc_best,
         },
         out_dir / cfg["outputs"].get("results_file", "results.json"),
     )
@@ -212,6 +222,11 @@ def run_in_domain(cfg, config_path: str):
     print("[Classification Report]")
     print(metrics["classification_report_text"])
     print("[Metrics]", metrics)
+
+    if posthoc_best is not None:
+        print("[Post-hoc best]")
+        print(posthoc_best)
+
     print("=" * 80)
 
 
@@ -383,6 +398,14 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
         )
         print("[Predictions saved]")
 
+    # Post-hoc calibration / grid search without retraining.
+    posthoc_best, posthoc_predictions = run_posthoc_grid_search(
+        score_df=test_scores,
+        cfg=cfg,
+        output_dir=out_dir,
+        normal_label=0,
+    )
+
     if cfg.get("outputs", {}).get("save_model", True):
         print("[Saving model]")
         torch.save(model.state_dict(), out_dir / "model.pt")
@@ -401,6 +424,7 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
             "source_history": source_history,
             "target_history": target_history,
             "metrics": metrics,
+            "posthoc_best": posthoc_best,
             "source_datasets": source_datasets,
             "target_dataset": target_dataset,
             "target_adapt_size": int(len(target_adapt_df)),
@@ -412,6 +436,11 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
     print("[Classification Report]")
     print(metrics["classification_report_text"])
     print("[Metrics]", metrics)
+
+    if posthoc_best is not None:
+        print("[Post-hoc best]")
+        print(posthoc_best)
+
     print("=" * 80)
 
 

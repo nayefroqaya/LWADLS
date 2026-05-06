@@ -156,7 +156,7 @@ hybrid_scoring:
   # Final anomaly score:
   # score = alpha_mlm * mlm_loss + beta_center * center_distance
   alpha_mlm: 0.80 #0.75
-  beta_center: 0.25 #0.3
+  beta_center: 0.20 #0.3
 
 # ======================================================
 # THRESHOLD
@@ -181,3 +181,28 @@ outputs:
   save_normal_center: true
   results_file: "results.json"
   predictions_file: "predictions.csv"
+
+# ======================================================
+# POST-HOC CALIBRATION
+# ======================================================
+posthoc_calibration:
+  enabled: true
+
+  # Recommended if you want balanced normal/anomaly performance.
+  # Options:
+  #   "macro_f1"
+  #   "anomaly_f1"
+  #   "weighted_f1"
+  #   "accuracy"
+  selection_metric: "macro_f1"
+
+  # alpha_mlm + beta_center should sum to 1.
+  alpha_mlm_values: [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90]
+
+  # Percentile threshold search.
+  percentile_values: [80, 82, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95]
+
+  save_grid_results: true
+  grid_results_file: "posthoc_grid_search_results.csv"
+  best_report_file: "posthoc_best_report.txt"
+  best_predictions_file: "posthoc_best_predictions.csv"
