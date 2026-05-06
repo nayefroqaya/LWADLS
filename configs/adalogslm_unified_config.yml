@@ -187,8 +187,8 @@ posthoc_calibration:
   #   "anomaly_f1"
   #   "weighted_f1"
   #   "accuracy"
-  selection_metric: "macro_f1"
-  #selection_metric: "precision_at_recall"
+  #selection_metric: "macro_f1"
+  selection_metric: "precision_at_recall"
   min_anomaly_recall: 0.97
 
   # alpha_mlm + beta_center should sum to 1.
