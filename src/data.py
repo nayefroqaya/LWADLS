@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from transformers import DataCollatorForLanguageModeling
+from tqdm import tqdm
 
 from .config import dataset_split_path
 from .utils import normalize_log_text
@@ -24,15 +24,21 @@ def binary_label(value: Any, normal_values: List[Any]) -> int:
 
 def load_dataframe(path: str | Path) -> pd.DataFrame:
     path = Path(path)
+
     if not path.exists():
         raise FileNotFoundError(f"Dataset file not found: {path}")
 
-    if path.suffix.lower() == ".pkl":
-        return pd.read_pickle(path)
-    if path.suffix.lower() == ".csv":
-        return pd.read_csv(path)
+    print(f"[Loading file] {path}")
 
-    raise ValueError(f"Unsupported file format: {path.suffix}. Use .pkl or .csv")
+    if path.suffix.lower() == ".pkl":
+        df = pd.read_pickle(path)
+    elif path.suffix.lower() == ".csv":
+        df = pd.read_csv(path)
+    else:
+        raise ValueError(f"Unsupported file format: {path.suffix}. Use .pkl or .csv")
+
+    print(f"[Loaded] rows={len(df):,}, columns={len(df.columns)}")
+    return df
 
 
 def build_sequences_from_df(
@@ -55,37 +61,65 @@ def build_sequences_from_df(
 
     missing = [c for c in [label_col, template_col] if c not in df.columns]
     if missing:
-        raise ValueError(f"Missing required columns {missing}. Available columns: {list(df.columns)}")
+        raise ValueError(
+            f"Missing required columns {missing}. Available columns: {list(df.columns)}"
+        )
+
+    print(f"[Building sequences] dataset={dataset_name}, normal_only={normal_only}")
 
     work = df.copy()
-    work["_binary_label"] = work[label_col].apply(lambda x: binary_label(x, labels_cfg["normal_values"]))
+
+    print("[Label mapping] converting labels to binary normal/anomaly...")
+    work["_binary_label"] = work[label_col].apply(
+        lambda x: binary_label(x, labels_cfg["normal_values"])
+    )
 
     if normal_only:
+        before = len(work)
         work = work[work["_binary_label"] == 0].copy()
+        after = len(work)
+        print(f"[Normal filter] kept {after:,}/{before:,} rows")
 
     if work.empty:
-        raise ValueError(f"No rows left after filtering. dataset={dataset_name}, normal_only={normal_only}")
+        raise ValueError(
+            f"No rows left after filtering. dataset={dataset_name}, normal_only={normal_only}"
+        )
 
     # If no grouping column exists, each row becomes its own sequence.
     if group_col not in work.columns:
+        print(
+            f"[Warning] group column '{group_col}' not found. "
+            "Each row will be treated as one sequence."
+        )
         work["_sequence_group"] = np.arange(len(work))
         group_col = "_sequence_group"
 
     if text_cfg.get("sort_by_timestamp", True) and timestamp_col in work.columns:
+        print(f"[Sorting] by {group_col} and {timestamp_col}")
         work = work.sort_values([group_col, timestamp_col])
     else:
+        print(f"[Sorting] by {group_col}")
         work = work.sort_values([group_col])
 
     event_separator = text_cfg.get("event_separator", " [SEP] ")
     max_events = int(text_cfg.get("max_events_per_sequence", 50))
     min_events = int(text_cfg.get("min_events_per_sequence", 1))
 
+    groups = list(work.groupby(group_col, sort=False))
+    print(f"[Grouping] {len(groups):,} groups found using column '{group_col}'")
+
     rows = []
-    for gid, g in work.groupby(group_col, sort=False):
+
+    for gid, g in tqdm(
+        groups,
+        desc=f"Building {dataset_name} sequences",
+        unit="group",
+    ):
         events = [
             normalize_log_text(x, text_cfg)
             for x in g[template_col].astype(str).tolist()
         ]
+
         events = [e for e in events if e]
 
         if len(events) < min_events:
@@ -94,27 +128,39 @@ def build_sequences_from_df(
         # Split long sessions into chunks.
         for start in range(0, len(events), max_events):
             chunk = events[start:start + max_events]
+
             if len(chunk) < min_events:
                 continue
 
-            # sequence label = anomaly if any event in chunk is anomalous
             g_chunk = g.iloc[start:start + max_events]
+
+            # Sequence label = anomaly if any event inside the sequence is anomalous.
             seq_label = int(g_chunk["_binary_label"].max())
 
             if normal_only and seq_label != 0:
                 continue
 
-            rows.append({
-                "sequence": event_separator.join(chunk),
-                "label": seq_label,
-                "dataset": dataset_name,
-                "group_id": str(gid),
-                "num_events": len(chunk),
-            })
+            rows.append(
+                {
+                    "sequence": event_separator.join(chunk),
+                    "label": seq_label,
+                    "dataset": dataset_name,
+                    "group_id": str(gid),
+                    "num_events": len(chunk),
+                }
+            )
 
     seq_df = pd.DataFrame(rows)
+
     if seq_df.empty:
         raise ValueError(f"No sequences were built for dataset={dataset_name}.")
+
+    print(
+        f"[Sequences built] dataset={dataset_name}, "
+        f"sequences={len(seq_df):,}, "
+        f"normal={(seq_df['label'] == 0).sum():,}, "
+        f"anomaly={(seq_df['label'] == 1).sum():,}"
+    )
 
     # Few-shot normal sampling for target adaptation.
     if normal_only and (max_normal_ratio is not None or max_normal_samples is not None):
@@ -130,6 +176,13 @@ def build_sequences_from_df(
             sample_n = min(sample_n, int(max_normal_samples))
 
         sample_n = min(sample_n, n)
+
+        print(
+            f"[Few-shot sampling] dataset={dataset_name}, "
+            f"ratio={max_normal_ratio}, max_samples={max_normal_samples}, "
+            f"selected={sample_n:,}/{n:,}"
+        )
+
         idx = rng.choice(seq_df.index.to_numpy(), size=sample_n, replace=False)
         seq_df = seq_df.loc[idx].reset_index(drop=True)
 
@@ -145,8 +198,18 @@ def load_sequences_for_dataset(
     target_normal_max_samples: Optional[int] = None,
 ) -> pd.DataFrame:
     path = dataset_split_path(cfg, dataset, split)
+
+    print("=" * 80)
+    print(f"[Dataset loading]")
+    print(f"dataset     : {dataset}")
+    print(f"split       : {split}")
+    print(f"normal_only : {normal_only}")
+    print(f"path        : {path}")
+    print("=" * 80)
+
     df = load_dataframe(path)
-    return build_sequences_from_df(
+
+    seq_df = build_sequences_from_df(
         df=df,
         cfg=cfg,
         dataset_name=dataset,
@@ -156,6 +219,8 @@ def load_sequences_for_dataset(
         seed=cfg["experiment"].get("seed", 42),
     )
 
+    return seq_df
+
 
 def concat_dataset_splits(
     cfg: Dict[str, Any],
@@ -163,11 +228,32 @@ def concat_dataset_splits(
     split: str,
     normal_only: bool,
 ) -> pd.DataFrame:
-    frames = [
-        load_sequences_for_dataset(cfg, ds, split, normal_only=normal_only)
-        for ds in datasets
-    ]
-    return pd.concat(frames, axis=0).reset_index(drop=True)
+    frames = []
+
+    for ds in tqdm(
+        datasets,
+        desc=f"Loading source datasets split={split}",
+        unit="dataset",
+    ):
+        seq_df = load_sequences_for_dataset(
+            cfg,
+            dataset=ds,
+            split=split,
+            normal_only=normal_only,
+        )
+        frames.append(seq_df)
+
+    merged = pd.concat(frames, axis=0).reset_index(drop=True)
+
+    print("=" * 80)
+    print("[Merged source datasets]")
+    print(f"datasets : {datasets}")
+    print(f"split    : {split}")
+    print(f"rows     : {len(merged):,}")
+    print(merged["dataset"].value_counts())
+    print("=" * 80)
+
+    return merged
 
 
 class LogSequenceDataset(Dataset):
@@ -181,6 +267,7 @@ class LogSequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
+
         enc = self.tokenizer(
             str(row["sequence"]),
             truncation=True,
@@ -188,10 +275,12 @@ class LogSequenceDataset(Dataset):
             max_length=self.max_length,
             return_tensors=None,
         )
+
         enc["labels_cls"] = int(row["label"])
         enc["dataset_name"] = str(row["dataset"])
         enc["group_id"] = str(row.get("group_id", idx))
         enc["sequence_text"] = str(row["sequence"])
+
         return enc
 
 
@@ -204,6 +293,12 @@ def build_loader_from_sequences(
     shuffle: bool,
     use_dataset_balanced_sampler: bool = False,
 ):
+    print(
+        f"[DataLoader] samples={len(seq_df):,}, "
+        f"batch_size={batch_size}, shuffle={shuffle}, "
+        f"balanced_sampler={use_dataset_balanced_sampler}"
+    )
+
     dataset = LogSequenceDataset(seq_df, tokenizer, max_length=max_length)
 
     collator = DataCollatorForLanguageModeling(
@@ -213,7 +308,11 @@ def build_loader_from_sequences(
     )
 
     def collate_fn(batch):
-        labels_cls = torch.tensor([item.pop("labels_cls") for item in batch], dtype=torch.long)
+        labels_cls = torch.tensor(
+            [item.pop("labels_cls") for item in batch],
+            dtype=torch.long,
+        )
+
         dataset_names = [item.pop("dataset_name") for item in batch]
         group_ids = [item.pop("group_id") for item in batch]
         sequence_texts = [item.pop("sequence_text") for item in batch]
@@ -223,14 +322,27 @@ def build_loader_from_sequences(
         lm_batch["dataset_names"] = dataset_names
         lm_batch["group_ids"] = group_ids
         lm_batch["sequence_texts"] = sequence_texts
+
         return lm_batch
 
     sampler = None
+
     if use_dataset_balanced_sampler and "dataset" in seq_df.columns:
         counts = seq_df["dataset"].value_counts().to_dict()
-        weights = seq_df["dataset"].map(lambda d: 1.0 / counts[d]).to_numpy(dtype=np.float64)
-        sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
+        weights = seq_df["dataset"].map(lambda d: 1.0 / counts[d]).to_numpy(
+            dtype=np.float64
+        )
+
+        sampler = WeightedRandomSampler(
+            weights=weights,
+            num_samples=len(weights),
+            replacement=True,
+        )
+
         shuffle = False
+
+        print("[Balanced sampler enabled]")
+        print(seq_df["dataset"].value_counts())
 
     return DataLoader(
         dataset,
