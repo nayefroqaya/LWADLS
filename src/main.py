@@ -287,8 +287,8 @@ def main():
         INTERNAL_TEST_DATASETS,
     )
 
-    RUN_MLM = True
-    RUN_TRAINING = True
+    RUN_MLM = False
+    RUN_TRAINING = False
     RUN_PREDICTION = True
 
     # For prediction only after training:
