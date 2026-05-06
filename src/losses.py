@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 
 
 def center_loss(embeddings: torch.Tensor, center: torch.Tensor | None = None):
@@ -8,11 +9,13 @@ def center_loss(embeddings: torch.Tensor, center: torch.Tensor | None = None):
 
 
 @torch.no_grad()
-def compute_center(model, loader, device):
+def compute_center(model, loader, device, desc: str = "Computing normal center"):
     model.eval()
     vectors = []
 
-    for batch in loader:
+    progress = tqdm(loader, desc=desc, unit="batch")
+
+    for batch in progress:
         input_ids = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
@@ -22,9 +25,14 @@ def compute_center(model, loader, device):
             attention_mask=attention_mask,
             labels=labels,
         )
+
         vectors.append(out["embedding"].detach().cpu())
 
     if not vectors:
         raise ValueError("Cannot compute center: empty loader.")
 
-    return torch.cat(vectors, dim=0).mean(dim=0)
+    center = torch.cat(vectors, dim=0).mean(dim=0)
+
+    print(f"[Normal center computed] shape={tuple(center.shape)}")
+
+    return center

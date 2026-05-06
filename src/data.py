@@ -85,7 +85,6 @@ def build_sequences_from_df(
             f"No rows left after filtering. dataset={dataset_name}, normal_only={normal_only}"
         )
 
-    # If no grouping column exists, each row becomes its own sequence.
     if group_col not in work.columns:
         print(
             f"[Warning] group column '{group_col}' not found. "
@@ -125,7 +124,6 @@ def build_sequences_from_df(
         if len(events) < min_events:
             continue
 
-        # Split long sessions into chunks.
         for start in range(0, len(events), max_events):
             chunk = events[start:start + max_events]
 
@@ -133,8 +131,6 @@ def build_sequences_from_df(
                 continue
 
             g_chunk = g.iloc[start:start + max_events]
-
-            # Sequence label = anomaly if any event inside the sequence is anomalous.
             seq_label = int(g_chunk["_binary_label"].max())
 
             if normal_only and seq_label != 0:
@@ -162,7 +158,6 @@ def build_sequences_from_df(
         f"anomaly={(seq_df['label'] == 1).sum():,}"
     )
 
-    # Few-shot normal sampling for target adaptation.
     if normal_only and (max_normal_ratio is not None or max_normal_samples is not None):
         rng = np.random.default_rng(seed)
         n = len(seq_df)
@@ -200,7 +195,7 @@ def load_sequences_for_dataset(
     path = dataset_split_path(cfg, dataset, split)
 
     print("=" * 80)
-    print(f"[Dataset loading]")
+    print("[Dataset loading]")
     print(f"dataset     : {dataset}")
     print(f"split       : {split}")
     print(f"normal_only : {normal_only}")

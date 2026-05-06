@@ -6,6 +6,7 @@ from typing import Dict, Any
 import numpy as np
 import pandas as pd
 import torch
+from tqdm import tqdm
 from sklearn.metrics import (
     precision_recall_fscore_support,
     accuracy_score,
@@ -16,13 +17,23 @@ from sklearn.metrics import (
 
 
 @torch.no_grad()
-def score_loader(model, loader, center, device, alpha_mlm: float, beta_center: float):
+def score_loader(
+    model,
+    loader,
+    center,
+    device,
+    alpha_mlm: float,
+    beta_center: float,
+    desc: str = "Scoring",
+):
     model.eval()
 
     rows = []
     center = center.to(device)
 
-    for batch in loader:
+    progress = tqdm(loader, desc=desc, unit="batch")
+
+    for batch in progress:
         input_ids = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
         labels_mlm = batch["labels"].to(device)
@@ -34,8 +45,6 @@ def score_loader(model, loader, center, device, alpha_mlm: float, beta_center: f
             labels=labels_mlm,
         )
 
-        # Batch-level MLM loss.
-        # Later you can replace this with per-sample token loss if needed.
         mlm_loss = float(out["mlm_loss"].detach().cpu())
 
         emb = out["embedding"]
@@ -48,6 +57,11 @@ def score_loader(model, loader, center, device, alpha_mlm: float, beta_center: f
         )
 
         batch_scores = alpha_mlm * batch_mlm + beta_center * dist
+
+        progress.set_postfix(
+            mlm_loss=f"{mlm_loss:.4f}",
+            mean_score=f"{float(np.mean(batch_scores)):.4f}",
+        )
 
         for i in range(input_ids.size(0)):
             rows.append(
@@ -62,7 +76,16 @@ def score_loader(model, loader, center, device, alpha_mlm: float, beta_center: f
                 }
             )
 
-    return pd.DataFrame(rows)
+    score_df = pd.DataFrame(rows)
+
+    print(
+        f"[Scoring completed] samples={len(score_df):,}, "
+        f"mean_score={score_df['score'].mean():.4f}, "
+        f"min_score={score_df['score'].min():.4f}, "
+        f"max_score={score_df['score'].max():.4f}"
+    )
+
+    return score_df
 
 
 def calibrate_threshold(
@@ -71,35 +94,38 @@ def calibrate_threshold(
     percentile: float = 95.0,
     fixed_threshold: float = 0.5,
 ):
+    print("[Threshold calibration]")
+    print(f"method={method}")
+
     scores_normal = np.asarray(scores_normal, dtype=np.float64)
 
     if method == "fixed":
+        print(f"fixed_threshold={fixed_threshold}")
         return float(fixed_threshold)
 
     if len(scores_normal) == 0:
         raise ValueError("Cannot calibrate threshold with empty normal scores.")
 
     if method == "percentile":
-        return float(np.percentile(scores_normal, percentile))
+        threshold = float(np.percentile(scores_normal, percentile))
+        print(f"percentile={percentile}, threshold={threshold:.6f}")
+        return threshold
 
     if method == "mean_std":
-        return float(scores_normal.mean() + 3.0 * scores_normal.std())
+        threshold = float(scores_normal.mean() + 3.0 * scores_normal.std())
+        print(
+            f"mean={scores_normal.mean():.6f}, "
+            f"std={scores_normal.std():.6f}, "
+            f"threshold={threshold:.6f}"
+        )
+        return threshold
 
     raise ValueError(f"Unknown threshold method: {method}")
 
 
 def evaluate_scores(score_df: pd.DataFrame, threshold: float, normal_label: int = 0):
-    """
-    Evaluates prediction results.
-
-    Class mapping:
-        0 = normal
-        1 = anomaly
-
-    Confusion matrix format:
-        [[TN, FP],
-         [FN, TP]]
-    """
+    print("[Evaluation]")
+    print(f"threshold={threshold:.6f}")
 
     y_true = (score_df["label"].to_numpy() != int(normal_label)).astype(int)
     y_pred = (score_df["score"].to_numpy() > threshold).astype(int)
@@ -135,23 +161,15 @@ def evaluate_scores(score_df: pd.DataFrame, threshold: float, normal_label: int 
 
     metrics = {
         "threshold": float(threshold),
-
-        # Binary anomaly-focused metrics.
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
         "accuracy": float(acc),
-
-        # Dataset statistics.
         "num_samples": int(len(score_df)),
         "num_anomalies": int(y_true.sum()),
         "num_normals": int((y_true == 0).sum()),
-
-        # Per-class classification report.
         "classification_report": report_dict,
         "classification_report_text": report_text,
-
-        # Confusion matrix.
         "confusion_matrix": {
             "labels": ["normal", "anomaly"],
             "matrix": cm.tolist(),
@@ -169,6 +187,12 @@ def evaluate_scores(score_df: pd.DataFrame, threshold: float, normal_label: int 
     except Exception:
         metrics["auc"] = None
 
+    print("[Classification Report]")
+    print(report_text)
+
+    print("[Confusion Matrix]")
+    print(cm)
+
     return metrics
 
 
@@ -177,28 +201,20 @@ def save_classification_report_files(
     output_dir,
     prefix: str = "test",
 ):
-    """
-    Saves:
-        test_classification_report.txt
-        test_classification_report.csv
-        test_confusion_matrix.csv
-    """
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save text report.
+    print(f"[Saving reports] output_dir={output_dir}")
+
     report_text = metrics.get("classification_report_text", "")
     report_txt_path = output_dir / f"{prefix}_classification_report.txt"
     report_txt_path.write_text(report_text, encoding="utf-8")
 
-    # Save CSV report.
     report_dict = metrics.get("classification_report", {})
     if report_dict:
         report_df = pd.DataFrame(report_dict).transpose()
         report_df.to_csv(output_dir / f"{prefix}_classification_report.csv")
 
-    # Save confusion matrix.
     cm_info = metrics.get("confusion_matrix", {})
     matrix = cm_info.get("matrix")
     labels = cm_info.get("labels", ["normal", "anomaly"])
@@ -210,3 +226,5 @@ def save_classification_report_files(
             columns=[f"pred_{x}" for x in labels],
         )
         cm_df.to_csv(output_dir / f"{prefix}_confusion_matrix.csv")
+
+    print("[Reports saved]")

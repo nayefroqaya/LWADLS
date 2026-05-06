@@ -130,8 +130,12 @@ def run_in_domain(cfg, config_path: str):
         stage_name="in-domain",
     )
 
-    # Same-dataset normal center.
-    center = compute_center(model, val_loader, device)
+    center = compute_center(
+        model,
+        val_loader,
+        device,
+        desc="Computing in-domain normal center",
+    )
 
     val_scores = score_loader(
         model,
@@ -140,6 +144,7 @@ def run_in_domain(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
+        desc="Scoring validation normal data",
     )
 
     threshold = calibrate_threshold(
@@ -156,6 +161,7 @@ def run_in_domain(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
+        desc="Predicting test data",
     )
 
     metrics = evaluate_scores(
@@ -164,33 +170,33 @@ def run_in_domain(cfg, config_path: str):
         normal_label=0,
     )
 
-    # Save per-class classification report.
     save_classification_report_files(
         metrics,
         out_dir,
         prefix="test",
     )
 
-    # Save predictions.
     if cfg.get("outputs", {}).get("save_predictions", True) or cfg.get(
         "evaluation", {}
     ).get("save_predictions", True):
+        print("[Saving predictions]")
         test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
         test_scores.to_csv(
             out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
             index=False,
         )
+        print("[Predictions saved]")
 
-    # Save model.
     if cfg.get("outputs", {}).get("save_model", True):
+        print("[Saving model]")
         torch.save(model.state_dict(), out_dir / "model.pt")
 
-    # Save normal center.
     if cfg.get("outputs", {}).get("save_normal_center", True):
+        print("[Saving normal center]")
         torch.save(center.cpu(), out_dir / "normal_center.pt")
 
-    # Save tokenizer.
     if cfg.get("outputs", {}).get("save_tokenizer", True):
+        print("[Saving tokenizer]")
         tokenizer.save_pretrained(out_dir / "tokenizer")
 
     save_json(
@@ -320,12 +326,11 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
         stage_name="target-adapt",
     )
 
-    # Critical for very different datasets:
-    # use target normal center, not source normal center.
     target_center = compute_center(
         model,
         target_val_loader,
         device,
+        desc="Computing target normal center",
     )
 
     val_scores = score_loader(
@@ -335,6 +340,7 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
+        desc="Scoring target validation normal data",
     )
 
     threshold = calibrate_threshold(
@@ -351,6 +357,7 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
+        desc="Predicting target test data",
     )
 
     metrics = evaluate_scores(
@@ -359,33 +366,33 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
         normal_label=0,
     )
 
-    # Save per-class classification report.
     save_classification_report_files(
         metrics,
         out_dir,
         prefix="test",
     )
 
-    # Save predictions.
     if cfg.get("outputs", {}).get("save_predictions", True) or cfg.get(
         "evaluation", {}
     ).get("save_predictions", True):
+        print("[Saving predictions]")
         test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
         test_scores.to_csv(
             out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
             index=False,
         )
+        print("[Predictions saved]")
 
-    # Save model.
     if cfg.get("outputs", {}).get("save_model", True):
+        print("[Saving model]")
         torch.save(model.state_dict(), out_dir / "model.pt")
 
-    # Save target normal center.
     if cfg.get("outputs", {}).get("save_normal_center", True):
+        print("[Saving target normal center]")
         torch.save(target_center.cpu(), out_dir / "target_normal_center.pt")
 
-    # Save tokenizer.
     if cfg.get("outputs", {}).get("save_tokenizer", True):
+        print("[Saving tokenizer]")
         tokenizer.save_pretrained(out_dir / "tokenizer")
 
     save_json(
