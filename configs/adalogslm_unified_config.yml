@@ -81,7 +81,7 @@ datasets:
 
     # Few-shot target-normal adaptation.
     # 0.05 means use only 5% of target normal training sequences.
-    target_normal_ratio: 0.10
+    target_normal_ratio: 0.20 # 0.10
     target_normal_max_samples: null
 
 # ======================================================
@@ -155,15 +155,15 @@ hybrid_scoring:
 
   # Final anomaly score:
   # score = alpha_mlm * mlm_loss + beta_center * center_distance
-  alpha_mlm: 0.7
-  beta_center: 0.3
+  alpha_mlm: 0.80 #0.75
+  beta_center: 0.25 #0.3
 
 # ======================================================
 # THRESHOLD
 # ======================================================
 threshold:
   method: "percentile"   # options: ["percentile", "mean_std", "fixed"]
-  percentile: 85
+  percentile: 88 #85
 
 prediction_stage:
   anomaly_threshold: 0.5   # used only if threshold.method = "fixed"
