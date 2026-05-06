@@ -1,73 +1,105 @@
-# 1. (optional) MLM
-python run_mlm.py --config configs/experiment.yaml
+# AdaLogSLM Updated Project
 
-# 2. Teacher
-python run_experiment.py --config configs/experiment.yaml --mode teacher
+This project implements a unified semi-supervised SLM anomaly detection framework with two modes:
 
-# 3. Student baseline
-python run_experiment.py --config configs/experiment.yaml --mode student
+1. `in_domain`
+2. `fewshot_target_adaptation`
 
-# 4. Distilled student
-python run_experiment.py --config configs/experiment.yaml --mode distill
+It matches the YAML structure in `configs/adalogslm_unified_config.yml`.
 
-## =====================
+## Supported input
+
+The code loads `.pkl` split files such as:
+
+```text
+../datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
+../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
+../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
+```
+
+The required columns are configured in YAML:
+
+```yaml
+columns:
+  timestamp: "Timestamp"
+  template: "processed_EventTemplate"
+  block_id: "Node_block_id"
+  label: "Label"
+  dataset: "DatasetName"
+```
+
+The code constructs sequence-level samples by grouping events using `Node_block_id`.
+
+## Run
+
+```bash
+pip install -r requirements.txt
+python -m src.run --config configs/adalogslm_unified_config.yml
+```
+
+## Change mode
+
+For in-domain:
+
+```yaml
+experiment:
+  mode: "in_domain"
+```
+
+For few-shot target adaptation:
+
+```yaml
+experiment:
+  mode: "fewshot_target_adaptation"
+```
+
+## Important design
+
+For cross-dataset/few-shot mode, the code uses:
+
+```text
+source normal training: BGL + HDFS
+target normal adaptation: TH_1G small normal subset
+target normal center: TH_1G validation normal logs
+target threshold: TH_1G validation normal logs
+target test: TH_1G test logs
+```
+
+The model does not use source normal center for target detection.
 
 
-| Experiment    | What it proves         |
-| ------------- | ---------------------- |
-| In-domain     | model works            |
-| Cross-dataset | generalization is hard |
-| Multi-source  | diversity helps        |
-| Leave-one-out | robustness             |
+## Run from PyCharm
 
-## Experiment 1 — In-domain
-- HDFS → HDFS
-- BGL → BGL
-- Spirit → Spirit
-- Tnunderbird → Tnunderbird
-               
-## Experiment 2 — Cross-dataset
+Open the project folder in PyCharm:
 
-- HDFS → BGL
-- BGL → HDFS
-- BGL   → Thunderbird 
-- Thunderbird→ BGL 
+```text
+adalogslm_project_pycharm/
+```
 
-## Experiment 3 — Multi-source (MAIN)
+Then run:
 
-- Train: Thunderbird + BGL 
-- Test: Spirit 
-                 
-- Train: Thunderbird + HDFS 
-- Test: BGL
+```text
+main.py
+```
 
-## Experiment 4 — Leave-one-out (BEST)
+The default config is:
 
-- Train: BGL + HDFS + Spirit + TH_a
-- Test : TH_b
-     
-- Train: HDFS + Spirit + TH_a +  TH_b
-- Test : BGL   
+```text
+configs/adalogslm_unified_config.yml
+```
 
+To change the running mode, edit this part in the YAML:
 
-## Example : 
+```yaml
+experiment:
+  mode: "fewshot_target_adaptation"
+```
 
-🔹 In our leave-one-out example
+or:
 
-- train_datasets: ["HDFS", "BGL", "Spirit", "TH_a"]
-- val_datasets:   ["HDFS", "BGL", "Spirit", "TH_a"]
-- test_datasets:  ["TH_b"]
- ## --------
-- Train: HDFS_train + BGL_train + Spirit_train + TH_a_train
-- Val:   HDFS_val   + BGL_val   + Spirit_val   + TH_a_val
-- Test:  TH_b_test# LWADLS
+```yaml
+experiment:
+  mode: "in_domain"
+```
 
- ## ../outputs/
-└── predictions/
-    └── teacher__train-BGL__val-BGL__test-BGL__best_model__split-test__datasets-BGL/
-        ├── evaluation_report.txt          ✅ (READ THIS)
-        ├── metrics.csv
-        ├── classification_report.csv
-        ├── per_dataset_metrics.csv
-        ├── predictions.csv
-        └── per_dataset_classification_reports/
+No terminal command is required if you run `main.py` directly from PyCharm.
