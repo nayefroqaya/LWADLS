@@ -57,18 +57,21 @@ def make_loader(cfg, seq_df, tokenizer, shuffle: bool, balanced: bool = False):
     )
 
 
+def get_center_config(cfg):
+    center_cfg = cfg.get("normal_center", {})
+
+    return {
+        "num_prototypes": int(center_cfg.get("num_prototypes", 1)),
+        "prototype_method": center_cfg.get("prototype_method", "kmeans"),
+        "seed": int(cfg["experiment"].get("seed", 42)),
+    }
+
+
 # ======================================================
 # MODE 1: IN-DOMAIN FULL PIPELINE
 # ======================================================
 
 def run_in_domain(cfg, config_path: str):
-    """
-    In-domain train + predict pipeline.
-
-    Current separated train/predict stages are implemented mainly
-    for fewshot_target_adaptation mode.
-    """
-
     out_dir = ensure_output_dir(cfg)
 
     if cfg.get("outputs", {}).get("save_config", True):
@@ -148,11 +151,16 @@ def run_in_domain(cfg, config_path: str):
         stage_name="in-domain",
     )
 
+    center_cfg = get_center_config(cfg)
+
     center = compute_center(
         model,
         val_loader,
         device,
         desc="Computing in-domain normal center",
+        num_prototypes=center_cfg["num_prototypes"],
+        prototype_method=center_cfg["prototype_method"],
+        seed=center_cfg["seed"],
     )
 
     val_scores = score_loader(
@@ -252,15 +260,6 @@ def run_in_domain(cfg, config_path: str):
 # ======================================================
 
 def run_fewshot_target_adaptation(cfg, config_path: str):
-    """
-    Full old behavior:
-        train source
-        adapt target
-        compute center
-        predict test
-        run posthoc calibration
-    """
-
     train_fewshot_target_adaptation(cfg, config_path)
     predict_fewshot_target_adaptation(cfg, config_path)
 
@@ -270,23 +269,6 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
 # ======================================================
 
 def train_fewshot_target_adaptation(cfg, config_path: str):
-    """
-    Training stage only.
-
-    This trains:
-        source normal model on BGL + HDFS
-        target adaptation on TH_1G normal subset
-
-    It saves:
-        model.pt
-        target_normal_center.pt
-        tokenizer/
-        config.yml
-        train_results.json
-
-    It does NOT predict test data.
-    """
-
     out_dir = ensure_output_dir(cfg)
 
     if cfg.get("outputs", {}).get("save_config", True):
@@ -383,17 +365,22 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         stage_name="target-adapt",
     )
 
+    center_cfg = get_center_config(cfg)
+
     target_center = compute_center(
         model,
         target_val_loader,
         device,
         desc="Computing target normal center",
+        num_prototypes=center_cfg["num_prototypes"],
+        prototype_method=center_cfg["prototype_method"],
+        seed=center_cfg["seed"],
     )
 
     print("[Saving trained model]")
     torch.save(model.state_dict(), out_dir / "model.pt")
 
-    print("[Saving target normal center]")
+    print("[Saving target normal center/prototypes]")
     torch.save(target_center.cpu(), out_dir / "target_normal_center.pt")
 
     print("[Saving tokenizer]")
@@ -408,6 +395,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
             "source_datasets": source_datasets,
             "target_dataset": target_dataset,
             "target_adapt_size": int(len(target_adapt_df)),
+            "normal_center": center_cfg,
             "saved_model": str(out_dir / "model.pt"),
             "saved_center": str(out_dir / "target_normal_center.pt"),
             "saved_tokenizer": str(out_dir / "tokenizer"),
@@ -428,24 +416,6 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
 # ======================================================
 
 def predict_fewshot_target_adaptation(cfg, config_path: str):
-    """
-    Prediction stage only.
-
-    This loads:
-        model.pt
-        target_normal_center.pt
-        tokenizer/
-
-    Then it:
-        scores target validation normal data
-        calibrates threshold
-        predicts target test data
-        saves reports and predictions
-        optionally runs post-hoc grid search
-
-    It does NOT retrain.
-    """
-
     out_dir = ensure_output_dir(cfg)
 
     set_seed(cfg["experiment"].get("seed", 42))
@@ -481,7 +451,7 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     print("[Mode] fewshot_target_adaptation")
     print(f"[Target dataset] {target_dataset}")
     print(f"[Loading model] {model_path}")
-    print(f"[Loading center] {center_path}")
+    print(f"[Loading center/prototypes] {center_path}")
     print(f"[Loading tokenizer] {tokenizer_path}")
     print("=" * 80)
 
@@ -614,15 +584,6 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
 # ======================================================
 
 def run_posthoc_only(cfg):
-    """
-    Post-hoc calibration only.
-
-    This reads existing predictions.csv and runs grid search.
-    It does not load model.
-    It does not train.
-    It does not predict.
-    """
-
     out_dir = ensure_output_dir(cfg)
 
     predictions_file = out_dir / cfg["outputs"].get(

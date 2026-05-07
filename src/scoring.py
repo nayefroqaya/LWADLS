@@ -16,6 +16,29 @@ from sklearn.metrics import (
 )
 
 
+def compute_center_distance(
+    embeddings: torch.Tensor,
+    center: torch.Tensor,
+):
+    """
+    Supports:
+        center shape [dim]       -> single center
+        center shape [k, dim]    -> multi-prototype centers
+
+    Returns:
+        distance per sample
+    """
+
+    if center.dim() == 1:
+        return ((embeddings - center) ** 2).sum(dim=1)
+
+    if center.dim() == 2:
+        dist = torch.cdist(embeddings, center, p=2) ** 2
+        return dist.min(dim=1).values
+
+    raise ValueError(f"Unsupported center shape: {tuple(center.shape)}")
+
+
 @torch.no_grad()
 def score_loader(
     model,
@@ -26,6 +49,15 @@ def score_loader(
     beta_center: float,
     desc: str = "Scoring",
 ):
+    """
+    Score sequences using:
+
+        score = alpha_mlm * per_sample_mlm_loss
+              + beta_center * nearest_center_distance
+
+    If multiple centers are provided, distance is computed to nearest prototype.
+    """
+
     model.eval()
 
     rows = []
@@ -45,21 +77,28 @@ def score_loader(
             labels=labels_mlm,
         )
 
-        mlm_loss = float(out["mlm_loss"].detach().cpu())
-
         emb = out["embedding"]
-        dist = ((emb - center) ** 2).sum(dim=1).detach().cpu().numpy()
 
-        batch_mlm = np.full(
-            shape=(input_ids.size(0),),
-            fill_value=mlm_loss,
-            dtype=np.float32,
-        )
+        if out.get("per_sample_mlm_loss") is not None:
+            mlm_losses = out["per_sample_mlm_loss"].detach().cpu().numpy()
+        else:
+            batch_loss = float(out["mlm_loss"].detach().cpu())
+            mlm_losses = np.full(
+                shape=(input_ids.size(0),),
+                fill_value=batch_loss,
+                dtype=np.float32,
+            )
 
-        batch_scores = alpha_mlm * batch_mlm + beta_center * dist
+        dist = compute_center_distance(
+            embeddings=emb,
+            center=center,
+        ).detach().cpu().numpy()
+
+        batch_scores = alpha_mlm * mlm_losses + beta_center * dist
 
         progress.set_postfix(
-            mlm_loss=f"{mlm_loss:.4f}",
+            mean_mlm=f"{float(np.mean(mlm_losses)):.4f}",
+            mean_dist=f"{float(np.mean(dist)):.4f}",
             mean_score=f"{float(np.mean(batch_scores)):.4f}",
         )
 
@@ -67,7 +106,7 @@ def score_loader(
             rows.append(
                 {
                     "score": float(batch_scores[i]),
-                    "mlm_loss": float(batch_mlm[i]),
+                    "mlm_loss": float(mlm_losses[i]),
                     "center_distance": float(dist[i]),
                     "label": int(labels_cls[i]),
                     "dataset": batch["dataset_names"][i],
@@ -80,9 +119,9 @@ def score_loader(
 
     print(
         f"[Scoring completed] samples={len(score_df):,}, "
-        f"mean_score={score_df['score'].mean():.4f}, "
-        f"min_score={score_df['score'].min():.4f}, "
-        f"max_score={score_df['score'].max():.4f}"
+        f"mean_score={score_df['score'].mean():.6f}, "
+        f"min_score={score_df['score'].min():.6f}, "
+        f"max_score={score_df['score'].max():.6f}"
     )
 
     return score_df
@@ -123,7 +162,11 @@ def calibrate_threshold(
     raise ValueError(f"Unknown threshold method: {method}")
 
 
-def evaluate_scores(score_df: pd.DataFrame, threshold: float, normal_label: int = 0):
+def evaluate_scores(
+    score_df: pd.DataFrame,
+    threshold: float,
+    normal_label: int = 0,
+):
     print("[Evaluation]")
     print(f"threshold={threshold:.6f}")
 
