@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_BGL_TH_1G_to_HDFS"
+  name: "AdaLogSLM_BGL_HDFS_to_TH_1G"
   mode: "fewshot_target_adaptation"   # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "train_predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_BGL_TH_1G_to_HDFS"
+  output_dir: "../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
 
 # ======================================================
 # PATHS
@@ -81,10 +81,10 @@ datasets:
   #   Target test:  HDFS normal + HDFS anomaly
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["BGL", "TH_1G"]
+    source_datasets: ["BGL", "HDFS"]
     source_train_split: "train"
 
-    target_dataset: "HDFS"
+    target_dataset: "TH_1G"
     target_adapt_split: "train"
     target_val_split: "val"
     target_test_split: "test"
