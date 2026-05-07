@@ -824,5 +824,21 @@ Format:
     print("=" * 80)
     print("[Post-hoc calibration] completed")
     print("=" * 80)
+    print("[Post-hoc calibration] classification report:")
+    print(best_report_text)
+
+    print("[Best post-hoc values used]")
+    print(f"alpha_mlm   : {best_row['alpha_mlm']}")
+    print(f"beta_center : {best_row['beta_center']}")
+    print(f"percentile  : {best_row['percentile']}")
+    print(f"threshold   : {best_row['threshold']}")
+    print(f"selection_metric : {selection_metric}")
+
+    if selection_metric == "precision_at_recall":
+        print(f"valid_recall_constraint : {best.get('valid', False)}")
+
+    print("[Post-hoc calibration] confusion matrix:")
+    print(best["cm"])
+
 
     return best_row, calibrated_df
