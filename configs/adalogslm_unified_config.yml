@@ -74,7 +74,7 @@ datasets:
 
     # Few-shot target-normal adaptation.
     # 0.05 means use only 5% of target normal training sequences.
-    target_normal_ratio:  0.20 # 0.10
+    target_normal_ratio: 0.30 #0.20 # 0.10
     target_normal_max_samples: null
 
 # ======================================================
@@ -188,7 +188,8 @@ posthoc_calibration:
   #   "weighted_f1"
   #   "accuracy"
   #selection_metric: "macro_f1"
-  selection_metric: "precision_at_recall"
+  #selection_metric: "precision_at_recall"
+  selection_metric: "anomaly_f1"
   min_anomaly_recall: 0.97
 
   # alpha_mlm + beta_center should sum to 1.
@@ -213,7 +214,7 @@ posthoc_calibration:
 experiment:
   name: "AdaLogSLM_TH_1G_BGL_to_HDFS"  #"AdaLogSLM_TH_1G_HDFS_to_BGL"                        #"AdaLogSLM_BGL_HDFS_to_TH_1G"
   mode: "fewshot_target_adaptation"
-  stage: "train_predict"   # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "posthoc_only"   # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_TH_1G_BGL_to_HDFS" #"../outputs/AdaLogSLM_TH_1G_HDFS_to_BGL"      #"../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
 
