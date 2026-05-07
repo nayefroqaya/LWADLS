@@ -50,38 +50,13 @@ def build_sequences_from_df(
     max_normal_samples: Optional[int] = None,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """
-    Build textual event sequences from a dataframe.
-
-    Important
-    ---------
-    This function does NOT create sliding windows.
-
-    It assumes the dataset has already been preprocessed and that
-    `Node_block_id` represents the sequence/session/window identifier.
-
-    For HDFS:
-        Node_block_id = original HDFS block ID.
-
-    For BGL, SP_150MB, TH_1G:
-        Node_block_id = precomputed sliding-window/session ID.
-
-    Therefore, all rows with the same Node_block_id are grouped into one
-    textual event sequence.
-    """
-
     columns = cfg["columns"]
     labels_cfg = cfg["labels"]
     text_cfg = cfg["text"]
 
     label_col = columns["label"]
     template_col = text_cfg.get("input_column", columns["template"])
-
-    # Sequence/group identifier.
-    # For HDFS, this is the original block ID.
-    # For other datasets, this can be the window/session ID created in preprocessing.
-    sequence_id_col = text_cfg.get("group_by_column", columns.get("block_id"))
-
+    group_col = text_cfg.get("group_by_column", columns.get("block_id"))
     timestamp_col = columns.get("timestamp")
 
     missing = [c for c in [label_col, template_col] if c not in df.columns]
@@ -91,11 +66,6 @@ def build_sequences_from_df(
         )
 
     print(f"[Building sequences] dataset={dataset_name}, normal_only={normal_only}")
-    print(f"[Sequence ID column] {sequence_id_col}")
-    print(
-        "[Note] The code groups all rows with the same sequence ID into one sequence. "
-        "It does not create sliding windows here."
-    )
 
     work = df.copy()
 
@@ -115,50 +85,34 @@ def build_sequences_from_df(
             f"No rows left after filtering. dataset={dataset_name}, normal_only={normal_only}"
         )
 
-    # ======================================================
-    # Sequence grouping
-    # ======================================================
-    # Expected behavior:
-    #   sequence_id_col exists, usually Node_block_id.
-    #
-    # All rows with the same sequence_id_col value are grouped into one sequence.
-    #
-    # Fallback behavior:
-    #   If sequence_id_col is missing, each row is treated as one sequence.
-    #   This is only a fallback for unexpected files.
-    # ======================================================
-    if sequence_id_col not in work.columns:
+    if group_col not in work.columns:
         print(
-            f"[Warning] sequence ID column '{sequence_id_col}' not found. "
-            "Each row will be treated as one sequence. "
-            "Expected input should contain Node_block_id."
+            f"[Warning] group column '{group_col}' not found. "
+            "Each row will be treated as one sequence."
         )
         work["_sequence_group"] = np.arange(len(work))
-        sequence_id_col = "_sequence_group"
+        group_col = "_sequence_group"
 
     if text_cfg.get("sort_by_timestamp", True) and timestamp_col in work.columns:
-        print(f"[Sorting] by {sequence_id_col} and {timestamp_col}")
-        work = work.sort_values([sequence_id_col, timestamp_col])
+        print(f"[Sorting] by {group_col} and {timestamp_col}")
+        work = work.sort_values([group_col, timestamp_col])
     else:
-        print(f"[Sorting] by {sequence_id_col}")
-        work = work.sort_values([sequence_id_col])
+        print(f"[Sorting] by {group_col}")
+        work = work.sort_values([group_col])
 
     event_separator = text_cfg.get("event_separator", " [SEP] ")
     max_events = int(text_cfg.get("max_events_per_sequence", 50))
     min_events = int(text_cfg.get("min_events_per_sequence", 1))
 
-    groups = list(work.groupby(sequence_id_col, sort=False))
-
-    print(
-        f"[Grouping] {len(groups):,} sequences found using column '{sequence_id_col}'"
-    )
+    groups = list(work.groupby(group_col, sort=False))
+    print(f"[Grouping] {len(groups):,} groups found using column '{group_col}'")
 
     rows = []
 
-    for sequence_id, g in tqdm(
+    for gid, g in tqdm(
         groups,
         desc=f"Building {dataset_name} sequences",
-        unit="sequence",
+        unit="group",
     ):
         events = [
             normalize_log_text(x, text_cfg)
@@ -170,17 +124,6 @@ def build_sequences_from_df(
         if len(events) < min_events:
             continue
 
-        # ======================================================
-        # Important:
-        #   We do NOT create sliding windows here.
-        #
-        #   We only split very long existing sequences into chunks
-        #   to avoid exceeding max_events_per_sequence.
-        #
-        #   If preprocessing already ensures each Node_block_id has
-        #   <= max_events_per_sequence events, then this creates one
-        #   sequence per Node_block_id.
-        # ======================================================
         for start in range(0, len(events), max_events):
             chunk = events[start:start + max_events]
 
@@ -188,10 +131,6 @@ def build_sequences_from_df(
                 continue
 
             g_chunk = g.iloc[start:start + max_events]
-
-            # Sequence label:
-            # If any event inside the sequence is anomalous,
-            # the whole sequence is labeled as anomaly.
             seq_label = int(g_chunk["_binary_label"].max())
 
             if normal_only and seq_label != 0:
@@ -202,7 +141,7 @@ def build_sequences_from_df(
                     "sequence": event_separator.join(chunk),
                     "label": seq_label,
                     "dataset": dataset_name,
-                    "group_id": str(sequence_id),
+                    "group_id": str(gid),
                     "num_events": len(chunk),
                 }
             )
@@ -219,8 +158,6 @@ def build_sequences_from_df(
         f"anomaly={(seq_df['label'] == 1).sum():,}"
     )
 
-    # Few-shot normal sampling for target adaptation.
-    # This samples from already-built normal sequences.
     if normal_only and (max_normal_ratio is not None or max_normal_samples is not None):
         rng = np.random.default_rng(seed)
         n = len(seq_df)
@@ -387,10 +324,9 @@ def build_loader_from_sequences(
 
     if use_dataset_balanced_sampler and "dataset" in seq_df.columns:
         counts = seq_df["dataset"].value_counts().to_dict()
-
-        weights = seq_df["dataset"].map(
-            lambda d: 1.0 / counts[d]
-        ).to_numpy(dtype=np.float64)
+        weights = seq_df["dataset"].map(lambda d: 1.0 / counts[d]).to_numpy(
+            dtype=np.float64
+        )
 
         sampler = WeightedRandomSampler(
             weights=weights,

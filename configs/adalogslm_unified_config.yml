@@ -86,7 +86,7 @@ text:
   sort_by_timestamp: true
   event_separator: " [SEP] "
 
-  max_events_per_sequence: 50
+  max_events_per_sequence: 250
   min_events_per_sequence: 1
 
   lowercase: false
@@ -99,7 +99,7 @@ text:
 # ======================================================
 model:
   student_name: "microsoft/MiniLM-L12-H384-uncased"
-  max_length: 128
+  max_length: 1024
   projection_dim: 128
   dropout: 0.1
 
@@ -214,7 +214,7 @@ posthoc_calibration:
 experiment:
   name: "AdaLogSLM_TH_1G_BGL_to_HDFS"  #"AdaLogSLM_TH_1G_HDFS_to_BGL"                        #"AdaLogSLM_BGL_HDFS_to_TH_1G"
   mode: "fewshot_target_adaptation"
-  stage: "posthoc_only"   # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "train_predict"   # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_TH_1G_BGL_to_HDFS" #"../outputs/AdaLogSLM_TH_1G_HDFS_to_BGL"      #"../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
 
