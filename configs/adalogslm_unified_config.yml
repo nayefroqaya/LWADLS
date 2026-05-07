@@ -19,7 +19,7 @@
 experiment:
   name: "AdaLogSLM_BGL_TH_1G_to_HDFS"
   mode: "fewshot_target_adaptation"   # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "posthoc_only"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_BGL_TH_1G_to_HDFS"
 
