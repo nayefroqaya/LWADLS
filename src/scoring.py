@@ -45,8 +45,6 @@ def score_loader(
             labels=labels_mlm,
         )
 
-        # Current implementation uses batch-level MLM loss.
-        # This is simple and stable. Later, it can be replaced with per-sample MLM loss.
         mlm_loss = float(out["mlm_loss"].detach().cpu())
 
         emb = out["embedding"]
@@ -163,25 +161,15 @@ def evaluate_scores(score_df: pd.DataFrame, threshold: float, normal_label: int 
 
     metrics = {
         "threshold": float(threshold),
-
-        # Binary anomaly-focused metrics.
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
         "accuracy": float(acc),
-
-        # Dataset statistics.
         "num_samples": int(len(score_df)),
         "num_anomalies": int(y_true.sum()),
         "num_normals": int((y_true == 0).sum()),
-
-        # Per-class classification report.
         "classification_report": report_dict,
         "classification_report_text": report_text,
-
-        # Confusion matrix:
-        # [[TN, FP],
-        #  [FN, TP]]
         "confusion_matrix": {
             "labels": ["normal", "anomaly"],
             "matrix": cm.tolist(),
@@ -240,35 +228,14 @@ def save_classification_report_files(
         cm_df.to_csv(output_dir / f"{prefix}_confusion_matrix.csv")
 
     print("[Reports saved]")
+
+
 def run_posthoc_grid_search(
     score_df: pd.DataFrame,
     cfg: Dict[str, Any],
     output_dir,
     normal_label: int = 0,
 ):
-    """
-    Post-hoc calibration stage.
-
-    This does NOT retrain the model.
-
-    It recomputes:
-
-        score = alpha_mlm * mlm_loss + beta_center * center_distance
-
-    Then it searches:
-        - alpha_mlm
-        - beta_center
-        - percentile threshold
-
-    Supported selection metrics:
-        macro_f1
-        anomaly_f1
-        weighted_f1
-        accuracy
-        normal_f1
-        precision_at_recall
-    """
-
     post_cfg = cfg.get("posthoc_calibration", {})
 
     if not post_cfg.get("enabled", False):
@@ -355,26 +322,20 @@ def run_posthoc_grid_search(
                 "beta_center": float(beta_center),
                 "percentile": float(percentile),
                 "threshold": float(threshold),
-
                 "accuracy": float(accuracy_score(y_true, y_pred)),
                 "auc": auc,
-
                 "normal_precision": float(report["normal"]["precision"]),
                 "normal_recall": float(report["normal"]["recall"]),
                 "normal_f1": float(report["normal"]["f1-score"]),
-
                 "anomaly_precision": float(report["anomaly"]["precision"]),
                 "anomaly_recall": float(report["anomaly"]["recall"]),
                 "anomaly_f1": float(report["anomaly"]["f1-score"]),
-
                 "macro_precision": float(report["macro avg"]["precision"]),
                 "macro_recall": float(report["macro avg"]["recall"]),
                 "macro_f1": float(report["macro avg"]["f1-score"]),
-
                 "weighted_precision": float(report["weighted avg"]["precision"]),
                 "weighted_recall": float(report["weighted avg"]["recall"]),
                 "weighted_f1": float(report["weighted avg"]["f1-score"]),
-
                 "tn": int(cm[0, 0]),
                 "fp": int(cm[0, 1]),
                 "fn": int(cm[1, 0]),
@@ -383,14 +344,7 @@ def run_posthoc_grid_search(
 
             rows.append(row)
 
-            # ======================================================
-            # BEST-SELECTION LOGIC
-            # ======================================================
-
             if selection_metric == "precision_at_recall":
-                # Goal:
-                # maximize anomaly precision,
-                # but only among settings where anomaly recall >= min_anomaly_recall.
                 candidate_valid = row["anomaly_recall"] >= min_anomaly_recall
 
                 if candidate_valid:
@@ -411,11 +365,7 @@ def run_posthoc_grid_search(
                             "cm": cm,
                             "valid": True,
                         }
-
                 else:
-                    # Fallback:
-                    # If no candidate reaches min_anomaly_recall,
-                    # choose the best anomaly_f1 among invalid candidates.
                     if best is None:
                         best = {
                             "row": row,
@@ -439,8 +389,6 @@ def run_posthoc_grid_search(
                         }
 
             else:
-                # Normal metric selection:
-                # choose the row with highest selected metric.
                 if best is None or row[selection_metric] > best["row"][selection_metric]:
                     best = {
                         "row": row,
@@ -451,11 +399,14 @@ def run_posthoc_grid_search(
                         "valid": True,
                     }
 
-    results_df = pd.DataFrame(rows)
-    results_df = results_df.sort_values(
-        "anomaly_precision" if selection_metric == "precision_at_recall" else selection_metric,
-        ascending=False,
+    sort_metric = (
+        "anomaly_precision"
+        if selection_metric == "precision_at_recall"
+        else selection_metric
     )
+
+    results_df = pd.DataFrame(rows)
+    results_df = results_df.sort_values(sort_metric, ascending=False)
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -550,280 +501,6 @@ Format:
 
     calibrated_df.to_csv(output_dir / best_predictions_file, index=False)
 
-    print("[Post-hoc calibration] best setting:")
-    print(best_row)
-    print(f"[Post-hoc calibration] valid recall constraint: {best.get('valid', False)}")
-
-    print("[Post-hoc calibration] classification report:")
-    print(best_report_text)
-
-    print("[Post-hoc calibration] confusion matrix:")
-    print(best["cm"])
-
-    print("[Post-hoc calibration] saved:")
-    print(output_dir / grid_results_file)
-    print(output_dir / best_report_file)
-    print(output_dir / best_predictions_file)
-
-    print("=" * 80)
-    print("[Post-hoc calibration] completed")
-    print("=" * 80)
-
-    return best_row, calibrated_df
-
-def run_posthoc_grid_searchXXXXX(
-    score_df: pd.DataFrame,
-    cfg: Dict[str, Any],
-    output_dir,
-    normal_label: int = 0,
-):
-    """
-    Post-hoc calibration stage.
-
-    This does NOT retrain the model.
-
-    It recomputes:
-
-        score = alpha_mlm * mlm_loss + beta_center * center_distance
-
-    Then it searches:
-        - alpha_mlm
-        - beta_center
-        - percentile threshold
-
-    and selects the best setting according to the selected metric.
-    """
-
-    post_cfg = cfg.get("posthoc_calibration", {})
-
-    if not post_cfg.get("enabled", False):
-        print("[Post-hoc calibration] disabled")
-        return None, score_df
-
-    print("=" * 80)
-    print("[Post-hoc calibration] started")
-    print("=" * 80)
-
-    required_cols = ["mlm_loss", "center_distance", "label"]
-    missing = [c for c in required_cols if c not in score_df.columns]
-
-    if missing:
-        raise ValueError(
-            f"Post-hoc calibration requires columns {required_cols}. "
-            f"Missing: {missing}"
-        )
-
-    alpha_values = post_cfg.get(
-        "alpha_mlm_values",
-        [0.5, 0.6, 0.7, 0.8, 0.9],
-    )
-
-    percentile_values = post_cfg.get(
-        "percentile_values",
-        [85, 87, 88, 89, 90, 91, 92, 93, 95],
-    )
-
-    selection_metric = post_cfg.get("selection_metric", "macro_f1")
-
-    valid_metrics = {
-        "macro_f1",
-        "anomaly_f1",
-        "weighted_f1",
-        "accuracy",
-        "normal_f1",
-    "precision_at_recall",
-
-    }
-
-    if selection_metric not in valid_metrics:
-        raise ValueError(
-            f"Invalid selection_metric={selection_metric}. "
-            f"Use one of {valid_metrics}"
-        )
-
-    y_true = (score_df["label"].to_numpy() != int(normal_label)).astype(int)
-
-    rows = []
-    best = None
-
-    for alpha_mlm in tqdm(alpha_values, desc="Post-hoc alpha search", unit="alpha"):
-        beta_center = round(1.0 - float(alpha_mlm), 6)
-
-        raw_scores = (
-            float(alpha_mlm) * score_df["mlm_loss"].to_numpy()
-            + beta_center * score_df["center_distance"].to_numpy()
-        )
-
-        for percentile in percentile_values:
-            threshold = float(np.percentile(raw_scores, percentile))
-            y_pred = (raw_scores > threshold).astype(int)
-
-            report = classification_report(
-                y_true,
-                y_pred,
-                labels=[0, 1],
-                target_names=["normal", "anomaly"],
-                output_dict=True,
-                zero_division=0,
-            )
-
-            cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
-
-            try:
-                auc = float(roc_auc_score(y_true, raw_scores))
-            except Exception:
-                auc = None
-
-            row = {
-                "alpha_mlm": float(alpha_mlm),
-                "beta_center": float(beta_center),
-                "percentile": float(percentile),
-                "threshold": float(threshold),
-
-                "accuracy": float(accuracy_score(y_true, y_pred)),
-                "auc": auc,
-
-                "normal_precision": float(report["normal"]["precision"]),
-                "normal_recall": float(report["normal"]["recall"]),
-                "normal_f1": float(report["normal"]["f1-score"]),
-
-                "anomaly_precision": float(report["anomaly"]["precision"]),
-                "anomaly_recall": float(report["anomaly"]["recall"]),
-                "anomaly_f1": float(report["anomaly"]["f1-score"]),
-
-                "macro_precision": float(report["macro avg"]["precision"]),
-                "macro_recall": float(report["macro avg"]["recall"]),
-                "macro_f1": float(report["macro avg"]["f1-score"]),
-
-                "weighted_precision": float(report["weighted avg"]["precision"]),
-                "weighted_recall": float(report["weighted avg"]["recall"]),
-                "weighted_f1": float(report["weighted avg"]["f1-score"]),
-
-                "tn": int(cm[0, 0]),
-                "fp": int(cm[0, 1]),
-                "fn": int(cm[1, 0]),
-                "tp": int(cm[1, 1]),
-            }
-
-            rows.append(row)
-
-            if best is None or row[selection_metric] > best["row"][selection_metric]:
-                best = {
-                    "row": row,
-                    "scores": raw_scores,
-                    "y_pred": y_pred,
-                    "report": report,
-                    "cm": cm,
-                }
-
-    results_df = pd.DataFrame(rows)
-    results_df = results_df.sort_values(selection_metric, ascending=False)
-
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    grid_results_file = post_cfg.get(
-        "grid_results_file",
-        "posthoc_grid_search_results.csv",
-    )
-
-    best_report_file = post_cfg.get(
-        "best_report_file",
-        "posthoc_best_report.txt",
-    )
-
-    best_predictions_file = post_cfg.get(
-        "best_predictions_file",
-        "posthoc_best_predictions.csv",
-    )
-
-    if post_cfg.get("save_grid_results", True):
-        results_df.to_csv(output_dir / grid_results_file, index=False)
-
-    best_row = best["row"]
-
-    best_report_text = classification_report(
-        y_true,
-        best["y_pred"],
-        labels=[0, 1],
-        target_names=["normal", "anomaly"],
-        zero_division=0,
-    )
-
-    best_output = f"""
-Post-hoc calibration best setting
-=================================
-selection_metric: {selection_metric}
-
-alpha_mlm: {best_row["alpha_mlm"]}
-beta_center: {best_row["beta_center"]}
-percentile: {best_row["percentile"]}
-threshold: {best_row["threshold"]}
-
-Overall
-=======
-accuracy: {best_row["accuracy"]}
-auc: {best_row["auc"]}
-macro_f1: {best_row["macro_f1"]}
-weighted_f1: {best_row["weighted_f1"]}
-
-Normal class
-============
-precision: {best_row["normal_precision"]}
-recall: {best_row["normal_recall"]}
-f1: {best_row["normal_f1"]}
-
-Anomaly class
-=============
-precision: {best_row["anomaly_precision"]}
-recall: {best_row["anomaly_recall"]}
-f1: {best_row["anomaly_f1"]}
-
-Classification report
-=====================
-{best_report_text}
-
-Confusion matrix
-================
-Format:
-[[TN, FP],
- [FN, TP]]
-
-{best["cm"]}
-"""
-
-    (output_dir / best_report_file).write_text(
-        best_output.strip() + "\n",
-        encoding="utf-8",
-    )
-
-    calibrated_df = score_df.copy()
-    calibrated_df["posthoc_score"] = best["scores"]
-    calibrated_df["posthoc_prediction"] = best["y_pred"]
-    calibrated_df["posthoc_alpha_mlm"] = best_row["alpha_mlm"]
-    calibrated_df["posthoc_beta_center"] = best_row["beta_center"]
-    calibrated_df["posthoc_percentile"] = best_row["percentile"]
-    calibrated_df["posthoc_threshold"] = best_row["threshold"]
-
-    calibrated_df.to_csv(output_dir / best_predictions_file, index=False)
-
-    print("[Post-hoc calibration] best setting:")
-    print(best_row)
-
-    print("[Post-hoc calibration] classification report:")
-    print(best_report_text)
-
-    print("[Post-hoc calibration] confusion matrix:")
-    print(best["cm"])
-
-    print("[Post-hoc calibration] saved:")
-    print(output_dir / grid_results_file)
-    print(output_dir / best_report_file)
-    print(output_dir / best_predictions_file)
-
-    print("=" * 80)
-    print("[Post-hoc calibration] completed")
-    print("=" * 80)
     print("[Post-hoc calibration] classification report:")
     print(best_report_text)
 
@@ -835,10 +512,19 @@ Format:
     print(f"selection_metric : {selection_metric}")
 
     if selection_metric == "precision_at_recall":
+        print(f"min_anomaly_recall : {min_anomaly_recall}")
         print(f"valid_recall_constraint : {best.get('valid', False)}")
 
     print("[Post-hoc calibration] confusion matrix:")
     print(best["cm"])
 
+    print("[Post-hoc calibration] saved:")
+    print(output_dir / grid_results_file)
+    print(output_dir / best_report_file)
+    print(output_dir / best_predictions_file)
+
+    print("=" * 80)
+    print("[Post-hoc calibration] completed")
+    print("=" * 80)
 
     return best_row, calibrated_df

@@ -53,12 +53,10 @@ def build_sequences_from_df(
     """
     Build textual event sequences from a dataframe.
 
-    Important
-    ---------
     This function does NOT create sliding windows.
 
     It assumes the dataset has already been preprocessed and that
-    `Node_block_id` represents the sequence/session/window identifier.
+    Node_block_id represents the sequence/session/window identifier.
 
     For HDFS:
         Node_block_id = original HDFS block ID.
@@ -78,8 +76,6 @@ def build_sequences_from_df(
     template_col = text_cfg.get("input_column", columns["template"])
 
     # Sequence/group identifier.
-    # For HDFS, this is the original block ID.
-    # For other datasets, this can be the window/session ID created in preprocessing.
     sequence_id_col = text_cfg.get("group_by_column", columns.get("block_id"))
 
     timestamp_col = columns.get("timestamp")
@@ -115,18 +111,6 @@ def build_sequences_from_df(
             f"No rows left after filtering. dataset={dataset_name}, normal_only={normal_only}"
         )
 
-    # ======================================================
-    # Sequence grouping
-    # ======================================================
-    # Expected behavior:
-    #   sequence_id_col exists, usually Node_block_id.
-    #
-    # All rows with the same sequence_id_col value are grouped into one sequence.
-    #
-    # Fallback behavior:
-    #   If sequence_id_col is missing, each row is treated as one sequence.
-    #   This is only a fallback for unexpected files.
-    # ======================================================
     if sequence_id_col not in work.columns:
         print(
             f"[Warning] sequence ID column '{sequence_id_col}' not found. "
@@ -157,7 +141,7 @@ def build_sequences_from_df(
 
     for sequence_id, g in tqdm(
         groups,
-        desc=f"Building {dataset_name} sequences",
+        desc=f"Assembling {dataset_name} sequences from Node_block_id",
         unit="sequence",
     ):
         events = [
@@ -170,17 +154,9 @@ def build_sequences_from_df(
         if len(events) < min_events:
             continue
 
-        # ======================================================
-        # Important:
-        #   We do NOT create sliding windows here.
-        #
-        #   We only split very long existing sequences into chunks
-        #   to avoid exceeding max_events_per_sequence.
-        #
-        #   If preprocessing already ensures each Node_block_id has
-        #   <= max_events_per_sequence events, then this creates one
-        #   sequence per Node_block_id.
-        # ======================================================
+        # We do NOT create sliding windows here.
+        # We only split very long existing sequences into chunks if they exceed
+        # max_events_per_sequence.
         for start in range(0, len(events), max_events):
             chunk = events[start:start + max_events]
 
