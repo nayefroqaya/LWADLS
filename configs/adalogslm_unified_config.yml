@@ -99,7 +99,7 @@ text:
 # ======================================================
 model:
   student_name: "microsoft/MiniLM-L12-H384-uncased"
-  max_length: 1024
+  max_length: 384
   projection_dim: 128
   dropout: 0.1
 
