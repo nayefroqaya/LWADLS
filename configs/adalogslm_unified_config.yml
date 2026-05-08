@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_HDFS"
+  name: "AdaLogSLM_BGL"
   mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_HDFS"
+  output_dir: "../outputs/AdaLogSLM_BGL"
 
 # ======================================================
 # PATHS
@@ -65,7 +65,7 @@ datasets:
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
   in_domain:
-    dataset_name: "HDFS"
+    dataset_name: "BGL"
     train_split: "train"
     val_split: "val"
     test_split: "test"
