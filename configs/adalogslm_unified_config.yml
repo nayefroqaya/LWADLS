@@ -212,7 +212,7 @@ posthoc_calibration:
   #   "accuracy"
   #   "normal_f1"
   #   "precision_at_recall"
-  selection_metric: "macro_f1"
+  selection_metric: "anomaly_f1" # "macro_f1"
 
   # Used only if selection_metric = "precision_at_recall"
   min_anomaly_recall: 0.80
@@ -225,8 +225,7 @@ posthoc_calibration:
   #percentile_values: [30, 35,40,45,50,55,60,65,70,82.5, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
 
   alpha_mlm_values: [ 0.0, 0.005, 0.01, 0.02, 0.03, 0.05 ]
-  percentile_values: [ 96.0, 96.25, 96.5, 96.75, 97.0, 97.25, 97.5, 97.75, 98.0 ]
-
+  percentile_values: [96.0, 96.25, 96.5, 96.75, 97.0, 97.25, 97.5, 97.75, 98.0, 98.25, 98.5, 98.75, 99.0]
   save_grid_results: true
   grid_results_file: "posthoc_grid_search_results.csv"
   best_report_file: "posthoc_best_report.txt"
