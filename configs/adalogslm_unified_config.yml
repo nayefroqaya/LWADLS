@@ -19,7 +19,7 @@
 experiment:
   name: "AdaLogSLM_BGL"
   mode: "in_domain"   # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "train_predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_BGL"
 
