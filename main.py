@@ -45,6 +45,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from utility import Utilities
 
 
 # ======================================================
@@ -94,6 +95,31 @@ def parse_args():
 # ======================================================
 
 def main():
+    colorama.init()
+
+    GREEN = colorama.Fore.GREEN
+    GRAY = colorama.Fore.LIGHTBLACK_EX
+    RESET = colorama.Fore.RESET
+    YELLOW = colorama.Fore.YELLOW
+
+    # ---------------- Initialize classes ----------------
+    DATASET = 'SP_150MB_ratio'
+    DATASETS_FOLDER = 'datasets'
+    Round = '1'
+    mode = 'X'
+    Mix_or_stable = '0'
+    ALL_DATASET_CSV_PATH = f'{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
+
+    utilities_obj = Utilities()
+
+
+    # ---------------- Dataset Splitting ----------------
+    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
+    utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,Mix_or_stable)
+    exit()
+    # ---------------- Process normal data ----------------
+
+
     args = parse_args()
     config_path = Path(args.config)
 
