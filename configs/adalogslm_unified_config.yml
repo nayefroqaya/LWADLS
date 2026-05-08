@@ -212,7 +212,7 @@ posthoc_calibration:
   #   "accuracy"
   #   "normal_f1"
   #   "precision_at_recall"
-  selection_metric: "precision_at_recall" # "macro_f1"
+  selection_metric: "macro_f1"
 
   # Used only if selection_metric = "precision_at_recall"
   min_anomaly_recall: 0.80
