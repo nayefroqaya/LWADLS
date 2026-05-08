@@ -1,5 +1,5 @@
 """
-PyCharm entry point for AdaLogSLM.
+PyCharm entry point for SLMADLS / AdaLogSLM.
 
 Run this file directly from PyCharm or terminal.
 
@@ -12,22 +12,21 @@ Optional:
 YAML controls the mode and stage:
 
 experiment:
-  mode: "fewshot_target_adaptation"
+  mode: "in_domain"
   stage: "train"
 
 Supported modes:
     in_domain
     fewshot_target_adaptation
 
-Supported stages:
+Supported stages for BOTH modes:
     train
-        Train source + target adaptation.
-        Save model, tokenizer, and target normal center.
+        Train and save model, tokenizer, and normal center/prototypes.
         Does NOT predict.
 
     predict
-        Load saved model, tokenizer, and target normal center.
-        Predict target test data.
+        Load saved model, tokenizer, and center/prototypes.
+        Predict test data.
         Save reports and predictions.
         Does NOT retrain.
 
@@ -45,8 +44,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from utility import Utilities
-import colorama
+
 
 # ======================================================
 # PROJECT SETUP
@@ -65,6 +63,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.config import load_config
 from src.run import (
     run_in_domain,
+    train_in_domain,
+    predict_in_domain,
     run_fewshot_target_adaptation,
     train_fewshot_target_adaptation,
     predict_fewshot_target_adaptation,
@@ -78,7 +78,7 @@ from src.run import (
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run AdaLogSLM from main.py"
+        description="Run SLMADLS / AdaLogSLM from main.py"
     )
 
     parser.add_argument(
@@ -95,32 +95,6 @@ def parse_args():
 # ======================================================
 
 def main():
-    colorama.init()
-
-    GREEN = colorama.Fore.GREEN
-    GRAY = colorama.Fore.LIGHTBLACK_EX
-    RESET = colorama.Fore.RESET
-    YELLOW = colorama.Fore.YELLOW
-    '''
-    # ---------------- Initialize classes ----------------
-    DATASET = 'SP_150MB_ratio'
-    DATASETS_FOLDER = 'datasets'
-    Round = '1'
-    mode = 'X'
-    Mix_or_stable = '0'
-    ALL_DATASET_CSV_PATH = f'{DATASETS_FOLDER}/{DATASET}/{DATASET}.csv'
-
-    utilities_obj = Utilities()
-
-
-    # ---------------- Dataset Splitting ----------------
-    print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
-    utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,Mix_or_stable)
-    exit()
-    '''
-    # ---------------- Process normal data ----------------
-
-
     args = parse_args()
     config_path = Path(args.config)
 
@@ -138,7 +112,7 @@ def main():
     stage = cfg["experiment"].get("stage", "train_predict")
 
     print("=" * 80)
-    print("AdaLogSLM")
+    print("SLMADLS / AdaLogSLM")
     print(f"Project root : {PROJECT_ROOT}")
     print(f"Config file  : {config_path}")
     print(f"Run mode     : {mode}")
@@ -148,28 +122,47 @@ def main():
     # --------------------------------------------------
     # POSTHOC ONLY
     # --------------------------------------------------
+    # This stage is shared by both modes.
+    # It only loads predictions.csv and runs grid search.
     if stage == "posthoc_only":
         run_posthoc_only(cfg)
         return
 
     # --------------------------------------------------
-    # IN-DOMAIN MODE
+    # MODE 1: IN-DOMAIN
     # --------------------------------------------------
     if mode == "in_domain":
 
-        if stage == "train_predict":
-            run_in_domain(cfg, str(config_path))
+        if stage == "train":
+            train_in_domain(
+                cfg,
+                str(config_path),
+            )
+
+        elif stage == "predict":
+            predict_in_domain(
+                cfg,
+                str(config_path),
+            )
+
+        elif stage == "train_predict":
+            run_in_domain(
+                cfg,
+                str(config_path),
+            )
 
         else:
             raise ValueError(
-                "Separated train/predict stages are currently implemented "
-                "for mode='fewshot_target_adaptation'.\n"
-                "For in_domain, use:\n"
-                "  experiment.stage: 'train_predict'"
+                f"Unsupported stage for in_domain: {stage}\n"
+                "Supported stages are:\n"
+                "  train\n"
+                "  predict\n"
+                "  posthoc_only\n"
+                "  train_predict"
             )
 
     # --------------------------------------------------
-    # FEW-SHOT TARGET ADAPTATION MODE
+    # MODE 2: FEW-SHOT TARGET ADAPTATION
     # --------------------------------------------------
     elif mode == "fewshot_target_adaptation":
 
@@ -193,7 +186,7 @@ def main():
 
         else:
             raise ValueError(
-                f"Unsupported stage: {stage}\n"
+                f"Unsupported stage for fewshot_target_adaptation: {stage}\n"
                 "Supported stages are:\n"
                 "  train\n"
                 "  predict\n"

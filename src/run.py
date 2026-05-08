@@ -67,11 +67,72 @@ def get_center_config(cfg):
     }
 
 
+def load_saved_model_tokenizer_center(
+    cfg,
+    out_dir: Path,
+    device,
+    center_filename: str,
+):
+    model_path = out_dir / "model.pt"
+    center_path = out_dir / center_filename
+    tokenizer_path = out_dir / "tokenizer"
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Saved model not found: {model_path}\n"
+            "Run stage: train first."
+        )
+
+    if not center_path.exists():
+        raise FileNotFoundError(
+            f"Saved center/prototypes not found: {center_path}\n"
+            "Run stage: train first."
+        )
+
+    if not tokenizer_path.exists():
+        raise FileNotFoundError(
+            f"Saved tokenizer not found: {tokenizer_path}\n"
+            "Run stage: train first."
+        )
+
+    print(f"[Loading model] {model_path}")
+    print(f"[Loading center/prototypes] {center_path}")
+    print(f"[Loading tokenizer] {tokenizer_path}")
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+
+    model = LogSLMNC(
+        backbone_name=cfg["model"]["student_name"],
+        projection_dim=cfg["model"]["projection_dim"],
+        dropout=cfg["model"]["dropout"],
+        freeze_backbone=cfg["model"].get("freeze_backbone", False),
+    ).to(device)
+
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    center = torch.load(center_path, map_location="cpu")
+
+    return model, tokenizer, center
+
+
 # ======================================================
-# MODE 1: IN-DOMAIN FULL PIPELINE
+# MODE 1: IN-DOMAIN TRAIN ONLY
 # ======================================================
 
-def run_in_domain(cfg, config_path: str):
+def train_in_domain(cfg, config_path: str):
+    """
+    In-domain training stage only.
+
+    Trains on normal sequences from one dataset and saves:
+        model.pt
+        normal_center.pt
+        tokenizer/
+        train_results.json
+
+    It does NOT predict.
+    """
+
     out_dir = ensure_output_dir(cfg)
 
     if cfg.get("outputs", {}).get("save_config", True):
@@ -84,6 +145,7 @@ def run_in_domain(cfg, config_path: str):
     dataset_name = mode_cfg["dataset_name"]
 
     print("=" * 80)
+    print("[Stage] TRAIN ONLY")
     print("[Mode] in_domain")
     print(f"[Dataset] {dataset_name}")
     print("=" * 80)
@@ -102,17 +164,9 @@ def run_in_domain(cfg, config_path: str):
         normal_only=mode_cfg.get("val_normal_only", True),
     )
 
-    test_df = load_sequences_for_dataset(
-        cfg,
-        dataset=dataset_name,
-        split=mode_cfg["test_split"],
-        normal_only=mode_cfg.get("test_normal_only", False),
-    )
-
     print(
         f"[Sequences] train={len(train_df)} "
-        f"val={len(val_df)} "
-        f"test={len(test_df)}"
+        f"val={len(val_df)}"
     )
 
     model, tokenizer = make_model_and_tokenizer(cfg, device)
@@ -128,13 +182,6 @@ def run_in_domain(cfg, config_path: str):
     val_loader = make_loader(
         cfg,
         val_df,
-        tokenizer,
-        shuffle=False,
-    )
-
-    test_loader = make_loader(
-        cfg,
-        test_df,
         tokenizer,
         shuffle=False,
     )
@@ -157,10 +204,118 @@ def run_in_domain(cfg, config_path: str):
         model,
         val_loader,
         device,
-        desc="Computing in-domain normal center",
+        desc="Computing in-domain normal center/prototypes",
         num_prototypes=center_cfg["num_prototypes"],
         prototype_method=center_cfg["prototype_method"],
         seed=center_cfg["seed"],
+    )
+
+    print("[Saving trained model]")
+    torch.save(model.state_dict(), out_dir / "model.pt")
+
+    print("[Saving normal center/prototypes]")
+    torch.save(center.cpu(), out_dir / "normal_center.pt")
+
+    print("[Saving tokenizer]")
+    tokenizer.save_pretrained(out_dir / "tokenizer")
+
+    save_json(
+        {
+            "stage": "train",
+            "mode": "in_domain",
+            "dataset": dataset_name,
+            "history": history,
+            "normal_center": center_cfg,
+            "saved_model": str(out_dir / "model.pt"),
+            "saved_center": str(out_dir / "normal_center.pt"),
+            "saved_tokenizer": str(out_dir / "tokenizer"),
+        },
+        out_dir / "train_results.json",
+    )
+
+    print("=" * 80)
+    print("[IN-DOMAIN TRAINING FINISHED]")
+    print(f"Saved model     : {out_dir / 'model.pt'}")
+    print(f"Saved center    : {out_dir / 'normal_center.pt'}")
+    print(f"Saved tokenizer : {out_dir / 'tokenizer'}")
+    print("=" * 80)
+
+
+# ======================================================
+# MODE 1: IN-DOMAIN PREDICT ONLY
+# ======================================================
+
+def predict_in_domain(cfg, config_path: str):
+    """
+    In-domain prediction stage only.
+
+    Loads:
+        model.pt
+        normal_center.pt
+        tokenizer/
+
+    Then:
+        scores validation normal data
+        calibrates threshold
+        predicts test data
+        saves reports and predictions
+        optionally runs post-hoc calibration
+
+    It does NOT retrain.
+    """
+
+    out_dir = ensure_output_dir(cfg)
+
+    set_seed(cfg["experiment"].get("seed", 42))
+    device = get_device(cfg["training"].get("device", "auto"))
+
+    mode_cfg = cfg["datasets"]["in_domain"]
+    dataset_name = mode_cfg["dataset_name"]
+
+    print("=" * 80)
+    print("[Stage] PREDICT ONLY")
+    print("[Mode] in_domain")
+    print(f"[Dataset] {dataset_name}")
+    print("=" * 80)
+
+    model, tokenizer, center = load_saved_model_tokenizer_center(
+        cfg=cfg,
+        out_dir=out_dir,
+        device=device,
+        center_filename="normal_center.pt",
+    )
+
+    val_df = load_sequences_for_dataset(
+        cfg,
+        dataset=dataset_name,
+        split=mode_cfg["val_split"],
+        normal_only=mode_cfg.get("val_normal_only", True),
+    )
+
+    test_df = load_sequences_for_dataset(
+        cfg,
+        dataset=dataset_name,
+        split=mode_cfg["test_split"],
+        normal_only=mode_cfg.get("test_normal_only", False),
+    )
+
+    print(
+        f"[Sequences] val={len(val_df)} "
+        f"test={len(test_df)}"
+    )
+
+    val_loader = make_loader(
+        cfg,
+        val_df,
+        tokenizer,
+        shuffle=False,
+    )
+
+    test_loader = make_loader(
+        cfg,
+        test_df,
+        tokenizer,
+        shuffle=False,
     )
 
     val_scores = score_loader(
@@ -170,7 +325,7 @@ def run_in_domain(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
-        desc="Scoring validation normal data",
+        desc="Scoring in-domain validation normal data",
     )
 
     threshold = calibrate_threshold(
@@ -187,7 +342,7 @@ def run_in_domain(cfg, config_path: str):
         device,
         alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
         beta_center=cfg["hybrid_scoring"]["beta_center"],
-        desc="Predicting test data",
+        desc="Predicting in-domain test data",
     )
 
     metrics = evaluate_scores(
@@ -202,16 +357,13 @@ def run_in_domain(cfg, config_path: str):
         prefix="test",
     )
 
-    if cfg.get("outputs", {}).get("save_predictions", True) or cfg.get(
-        "evaluation", {}
-    ).get("save_predictions", True):
-        print("[Saving predictions]")
-        test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
-        test_scores.to_csv(
-            out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
-            index=False,
-        )
-        print("[Predictions saved]")
+    print("[Saving predictions]")
+    test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
+    test_scores.to_csv(
+        out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
+        index=False,
+    )
+    print("[Predictions saved]")
 
     posthoc_best, _ = run_posthoc_grid_search(
         score_df=test_scores,
@@ -220,23 +372,11 @@ def run_in_domain(cfg, config_path: str):
         normal_label=0,
     )
 
-    if cfg.get("outputs", {}).get("save_model", True):
-        print("[Saving model]")
-        torch.save(model.state_dict(), out_dir / "model.pt")
-
-    if cfg.get("outputs", {}).get("save_normal_center", True):
-        print("[Saving normal center]")
-        torch.save(center.cpu(), out_dir / "normal_center.pt")
-
-    if cfg.get("outputs", {}).get("save_tokenizer", True):
-        print("[Saving tokenizer]")
-        tokenizer.save_pretrained(out_dir / "tokenizer")
-
     save_json(
         {
+            "stage": "predict",
             "mode": "in_domain",
-            "stage": "train_predict",
-            "history": history,
+            "dataset": dataset_name,
             "metrics": metrics,
             "posthoc_best": posthoc_best,
         },
@@ -244,9 +384,9 @@ def run_in_domain(cfg, config_path: str):
     )
 
     print("=" * 80)
+    print("[IN-DOMAIN PREDICTION FINISHED]")
     print("[Classification Report]")
     print(metrics["classification_report_text"])
-    print("[Metrics]", metrics)
 
     if posthoc_best is not None:
         print("[Post-hoc best]")
@@ -256,19 +396,41 @@ def run_in_domain(cfg, config_path: str):
 
 
 # ======================================================
-# MODE 2: FULL TRAIN + PREDICT PIPELINE
+# MODE 1: IN-DOMAIN FULL PIPELINE
 # ======================================================
 
-def run_fewshot_target_adaptation(cfg, config_path: str):
-    train_fewshot_target_adaptation(cfg, config_path)
-    predict_fewshot_target_adaptation(cfg, config_path)
+def run_in_domain(cfg, config_path: str):
+    """
+    Full in-domain pipeline:
+        train
+        predict
+    """
+
+    train_in_domain(cfg, config_path)
+    predict_in_domain(cfg, config_path)
 
 
 # ======================================================
-# MODE 2: TRAIN ONLY
+# MODE 2: FEW-SHOT TARGET ADAPTATION TRAIN ONLY
 # ======================================================
 
 def train_fewshot_target_adaptation(cfg, config_path: str):
+    """
+    Few-shot target adaptation training stage only.
+
+    Trains:
+        source normal model on source_datasets
+        target adaptation on target normal subset
+
+    Saves:
+        model.pt
+        target_normal_center.pt
+        tokenizer/
+        train_results.json
+
+    It does NOT predict.
+    """
+
     out_dir = ensure_output_dir(cfg)
 
     if cfg.get("outputs", {}).get("save_config", True):
@@ -371,7 +533,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         model,
         target_val_loader,
         device,
-        desc="Computing target normal center",
+        desc="Computing target normal center/prototypes",
         num_prototypes=center_cfg["num_prototypes"],
         prototype_method=center_cfg["prototype_method"],
         seed=center_cfg["seed"],
@@ -404,7 +566,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
     )
 
     print("=" * 80)
-    print("[TRAINING FINISHED]")
+    print("[FEW-SHOT TARGET ADAPTATION TRAINING FINISHED]")
     print(f"Saved model     : {out_dir / 'model.pt'}")
     print(f"Saved center    : {out_dir / 'target_normal_center.pt'}")
     print(f"Saved tokenizer : {out_dir / 'tokenizer'}")
@@ -412,10 +574,28 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
 
 
 # ======================================================
-# MODE 2: PREDICT ONLY
+# MODE 2: FEW-SHOT TARGET ADAPTATION PREDICT ONLY
 # ======================================================
 
 def predict_fewshot_target_adaptation(cfg, config_path: str):
+    """
+    Few-shot target adaptation prediction stage only.
+
+    Loads:
+        model.pt
+        target_normal_center.pt
+        tokenizer/
+
+    Then:
+        scores target validation normal data
+        calibrates threshold
+        predicts target test data
+        saves reports and predictions
+        optionally runs post-hoc calibration
+
+    It does NOT retrain.
+    """
+
     out_dir = ensure_output_dir(cfg)
 
     set_seed(cfg["experiment"].get("seed", 42))
@@ -424,50 +604,18 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     mode_cfg = cfg["datasets"]["fewshot_target_adaptation"]
     target_dataset = mode_cfg["target_dataset"]
 
-    model_path = out_dir / "model.pt"
-    center_path = out_dir / "target_normal_center.pt"
-    tokenizer_path = out_dir / "tokenizer"
-
-    if not model_path.exists():
-        raise FileNotFoundError(
-            f"Saved model not found: {model_path}\n"
-            "Run stage: train first."
-        )
-
-    if not center_path.exists():
-        raise FileNotFoundError(
-            f"Saved target normal center not found: {center_path}\n"
-            "Run stage: train first."
-        )
-
-    if not tokenizer_path.exists():
-        raise FileNotFoundError(
-            f"Saved tokenizer not found: {tokenizer_path}\n"
-            "Run stage: train first."
-        )
-
     print("=" * 80)
     print("[Stage] PREDICT ONLY")
     print("[Mode] fewshot_target_adaptation")
     print(f"[Target dataset] {target_dataset}")
-    print(f"[Loading model] {model_path}")
-    print(f"[Loading center/prototypes] {center_path}")
-    print(f"[Loading tokenizer] {tokenizer_path}")
     print("=" * 80)
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-
-    model = LogSLMNC(
-        backbone_name=cfg["model"]["student_name"],
-        projection_dim=cfg["model"]["projection_dim"],
-        dropout=cfg["model"]["dropout"],
-        freeze_backbone=cfg["model"].get("freeze_backbone", False),
-    ).to(device)
-
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-
-    target_center = torch.load(center_path, map_location="cpu")
+    model, tokenizer, target_center = load_saved_model_tokenizer_center(
+        cfg=cfg,
+        out_dir=out_dir,
+        device=device,
+        center_filename="target_normal_center.pt",
+    )
 
     target_val_df = load_sequences_for_dataset(
         cfg,
@@ -568,7 +716,7 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     )
 
     print("=" * 80)
-    print("[PREDICTION FINISHED]")
+    print("[FEW-SHOT TARGET ADAPTATION PREDICTION FINISHED]")
     print("[Classification Report]")
     print(metrics["classification_report_text"])
 
@@ -580,10 +728,38 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
 
 
 # ======================================================
-# POSTHOC ONLY
+# MODE 2: FEW-SHOT TARGET ADAPTATION FULL PIPELINE
+# ======================================================
+
+def run_fewshot_target_adaptation(cfg, config_path: str):
+    """
+    Full few-shot target adaptation pipeline:
+        train
+        predict
+    """
+
+    train_fewshot_target_adaptation(cfg, config_path)
+    predict_fewshot_target_adaptation(cfg, config_path)
+
+
+# ======================================================
+# SHARED POSTHOC ONLY
 # ======================================================
 
 def run_posthoc_only(cfg):
+    """
+    Post-hoc calibration only.
+
+    This reads existing predictions.csv and runs grid search.
+    It does not load model.
+    It does not train.
+    It does not predict.
+
+    Works for:
+        in_domain
+        fewshot_target_adaptation
+    """
+
     out_dir = ensure_output_dir(cfg)
 
     predictions_file = out_dir / cfg["outputs"].get(
@@ -614,6 +790,7 @@ def run_posthoc_only(cfg):
     save_json(
         {
             "stage": "posthoc_only",
+            "mode": cfg["experiment"].get("mode"),
             "posthoc_best": posthoc_best,
         },
         out_dir / "posthoc_only_results.json",
@@ -644,24 +821,37 @@ def main():
         return
 
     if mode == "in_domain":
-        if stage != "train_predict":
+        if stage == "train":
+            train_in_domain(cfg, args.config)
+
+        elif stage == "predict":
+            predict_in_domain(cfg, args.config)
+
+        elif stage == "train_predict":
+            run_in_domain(cfg, args.config)
+
+        else:
             raise ValueError(
-                "For in_domain, use stage='train_predict'."
+                f"Unsupported stage for in_domain: {stage}. "
+                "Use 'train', 'predict', 'posthoc_only', or 'train_predict'."
             )
-        run_in_domain(cfg, args.config)
 
     elif mode == "fewshot_target_adaptation":
         if stage == "train":
             train_fewshot_target_adaptation(cfg, args.config)
+
         elif stage == "predict":
             predict_fewshot_target_adaptation(cfg, args.config)
+
         elif stage == "train_predict":
             run_fewshot_target_adaptation(cfg, args.config)
+
         else:
             raise ValueError(
-                f"Unsupported stage: {stage}. "
+                f"Unsupported stage for fewshot_target_adaptation: {stage}. "
                 "Use 'train', 'predict', 'posthoc_only', or 'train_predict'."
             )
+
     else:
         raise ValueError(
             f"Unsupported mode: {mode}. "
