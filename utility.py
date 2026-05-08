@@ -125,7 +125,7 @@ class Utilities:
         # =======
         if Mix_or_stable == '0' and dataset == 'S_BGL':  # Stable
             # Create folder to save splits
-            save_path = os.path.join(f"../datasets/{dataset}", f"{round}_{dataset}_'Stable'_Splitted_Datasets")
+            save_path = os.path.join(f"datasets/{dataset}", f"{round}_{dataset}_'Stable'_Splitted_Datasets")
             os.makedirs(save_path, exist_ok=True)
             # Save each dataframe as PKL
             train_df.to_pickle(os.path.join(save_path, "train_df.pkl"))
@@ -134,7 +134,7 @@ class Utilities:
 
         elif Mix_or_stable == '1' and dataset == 'S_BGL':  # Mix
             # Create folder to save splits
-            save_path = os.path.join(f"../datasets/{dataset}", f"{round}_{dataset}_'Mix'_Splitted_Datasets")
+            save_path = os.path.join(f"datasets/{dataset}", f"{round}_{dataset}_'Mix'_Splitted_Datasets")
             os.makedirs(save_path, exist_ok=True)
             # Save each dataframe as PKL
             train_df.to_pickle(os.path.join(save_path, "train_df.pkl"))
@@ -145,7 +145,7 @@ class Utilities:
 
         else:
             # Create folder to save splits
-            save_path = os.path.join(f"../datasets/{dataset}", f"{round}_{dataset}_Splitted_Datasets")
+            save_path = os.path.join(f"datasets/{dataset}", f"{round}_{dataset}_Splitted_Datasets")
             os.makedirs(save_path, exist_ok=True)
             # Save each dataframe as PKL
             train_df.to_pickle(os.path.join(save_path, "train_df.pkl"))
