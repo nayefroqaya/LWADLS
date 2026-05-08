@@ -19,7 +19,7 @@
 experiment:
   name: "AdaLogSLM_HDFS"
   mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "posthoc_only"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_HDFS"
 
@@ -171,7 +171,7 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  num_prototypes: 10
+  num_prototypes: 20  # 10
 
   # options: ["kmeans", "random"]
   prototype_method: "kmeans"
@@ -215,7 +215,7 @@ posthoc_calibration:
   selection_metric: "macro_f1"
 
   # Used only if selection_metric = "precision_at_recall"
-  min_anomaly_recall: 0.80
+  min_anomaly_recall: 0.95 #0.80
 
   # Search alpha/beta values.
   # beta_center = 1 - alpha_mlm
