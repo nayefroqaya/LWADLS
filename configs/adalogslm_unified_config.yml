@@ -171,7 +171,7 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  num_prototypes: 20  # 10
+  num_prototypes: 10
 
   # options: ["kmeans", "random"]
   prototype_method: "kmeans"
@@ -215,14 +215,14 @@ posthoc_calibration:
   selection_metric: "macro_f1"
 
   # Used only if selection_metric = "precision_at_recall"
-  min_anomaly_recall: 0.95 #0.80
+  min_anomaly_recall: 0.80
 
   # Search alpha/beta values.
   # beta_center = 1 - alpha_mlm
-  alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30]
+  alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
 
   # BGL is usually more balanced than HDFS, so use a wider percentile range.
-  percentile_values: [30, 35,40,45,50,55,60,65,70, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
+  percentile_values: [30, 35,40,45,50,55,60,65,70,82.5, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
 
   save_grid_results: true
   grid_results_file: "posthoc_grid_search_results.csv"
