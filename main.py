@@ -101,7 +101,7 @@ def main():
     GRAY = colorama.Fore.LIGHTBLACK_EX
     RESET = colorama.Fore.RESET
     YELLOW = colorama.Fore.YELLOW
-
+    '''
     # ---------------- Initialize classes ----------------
     DATASET = 'SP_150MB_ratio'
     DATASETS_FOLDER = 'datasets'
@@ -117,6 +117,7 @@ def main():
     print(f"{GRAY}Splitting dataset into training, validation, and test sets...{RESET}")
     utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,Mix_or_stable)
     exit()
+    '''
     # ---------------- Process normal data ----------------
 
 
