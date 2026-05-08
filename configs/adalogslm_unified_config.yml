@@ -18,8 +18,8 @@
 # ======================================================
 experiment:
   name: "AdaLogSLM_BGL"
-  mode: "in_domain"   # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "predict"                      # options: ["train", "predict", "posthoc_only", "train_predict"]
+  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
+  stage: "predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_BGL"
 
@@ -59,9 +59,10 @@ datasets:
 
   # ----------------------------------------------------
   # Mode 1: In-domain semi-supervised
-  # Example:
-  #   Train: HDFS normal
-  #   Test:  HDFS normal + HDFS anomaly
+  # Current experiment:
+  #   Train: BGL normal
+  #   Val:   BGL normal
+  #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
   in_domain:
     dataset_name: "BGL"
@@ -75,16 +76,14 @@ datasets:
 
   # ----------------------------------------------------
   # Mode 2: Few-shot target adaptation
-  # Current experiment:
-  #   Source train: BGL + TH_1G normal
-  #   Target adapt: HDFS normal subset
-  #   Target test:  HDFS normal + HDFS anomaly
+  # This section is ignored when mode = "in_domain".
+  # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["xx", "xx"]
+    source_datasets: ["HDFS", "TH_1G"]
     source_train_split: "train"
 
-    target_dataset: "xx"
+    target_dataset: "BGL"
     target_adapt_split: "train"
     target_val_split: "val"
     target_test_split: "test"
@@ -93,8 +92,6 @@ datasets:
     target_val_normal_only: true
     target_test_normal_only: false
 
-    # Few-shot target-normal adaptation.
-    # 0.20 means use 20% of target normal training sequences.
     target_normal_ratio: 0.20
     target_normal_max_samples: null
 
@@ -109,12 +106,6 @@ text:
 
   # Node_block_id is treated as sequence/session/window ID.
   # The code does NOT create sliding windows here.
-  #
-  # HDFS:
-  #   Node_block_id = original HDFS block ID
-  #
-  # BGL / TH_1G / SP_150MB:
-  #   Node_block_id = precomputed sliding-window/session ID
   max_events_per_sequence: 150
   min_events_per_sequence: 1
 
@@ -162,7 +153,6 @@ training:
   gradient_clip_norm: 1.0
   center_loss_weight: 0.1
 
-  # Useful when source datasets have different sizes.
   use_dataset_balanced_sampler: true
   balance_source_datasets: true
 
@@ -181,11 +171,6 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  #
-  # Recommended tests:
-  #   num_prototypes: 1   old baseline
-  #   num_prototypes: 10  multi-prototype
-  #   num_prototypes: 20  stronger multi-prototype
   num_prototypes: 10
 
   # options: ["kmeans", "random"]
@@ -200,13 +185,6 @@ hybrid_scoring:
   # Final anomaly score:
   # score = alpha_mlm * per_sample_mlm_loss
   #       + beta_center * nearest_center_distance
-  #
-  # For HDFS, previous best used center distance only:
-  #   alpha_mlm: 0.0
-  #   beta_center: 1.0
-  #
-  # With per-sample MLM loss + multi-prototype centers,
-  # you can retune using posthoc_calibration.
   alpha_mlm: 0.0
   beta_center: 1.0
 
@@ -215,9 +193,6 @@ hybrid_scoring:
 # ======================================================
 threshold:
   method: "percentile"   # options: ["percentile", "mean_std", "fixed"]
-
-  # Previous best HDFS single-center setting.
-  # Retune after enabling multi-prototype centers.
   percentile: 95.0
 
 prediction_stage:
@@ -229,6 +204,7 @@ prediction_stage:
 posthoc_calibration:
   enabled: true
 
+  # For BGL in-domain, macro_f1 is usually a good balanced metric.
   # Options:
   #   "macro_f1"
   #   "anomaly_f1"
@@ -236,18 +212,16 @@ posthoc_calibration:
   #   "accuracy"
   #   "normal_f1"
   #   "precision_at_recall"
-  #
-  # For HDFS, anomaly_f1 is usually better because the anomaly class is small.
-  selection_metric: "anomaly_f1"
+  selection_metric: "macro_f1"
 
   # Used only if selection_metric = "precision_at_recall"
-  min_anomaly_recall: 0.30
+  min_anomaly_recall: 0.80
 
-  # Since HDFS previously preferred center distance,
-  # search low alpha_mlm values.
+  # Search alpha/beta values.
+  # beta_center = 1 - alpha_mlm
   alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30]
 
-  # HDFS is highly imbalanced, so use high percentiles.
+  # BGL is usually more balanced than HDFS, so use a wider percentile range.
   percentile_values: [30, 35,40,45,50,55,60,65,70, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
 
   save_grid_results: true
