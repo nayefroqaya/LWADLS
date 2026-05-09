@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_BGL_HDFS_to_TH_1G"
+  name: "AdaLogSLM_HDFS_TH_1G_to_BGL"
   mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_BGL_HDFS_to_TH_1G"
+  output_dir: "../outputs/AdaLogSLM_HDFS_TH_1G_to_BGL"
 
 # ======================================================
 # PATHS
@@ -80,10 +80,10 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["BGL", "HDFS"]
+    source_datasets: ["TH_1G", "HDFS"]
     source_train_split: "train"
 
-    target_dataset: "TH_1G"
+    target_dataset: "BGL"
     target_adapt_split: "train"
     target_val_split: "val"
     target_test_split: "test"
