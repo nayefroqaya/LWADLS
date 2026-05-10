@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 
@@ -91,6 +92,37 @@ def parse_args():
 
 
 # ======================================================
+# RUNTIME HELPERS
+# ======================================================
+
+def format_minutes(seconds: float) -> str:
+    return f"{seconds / 60.0:.2f}"
+
+
+def print_time_summary(runtime_summary: dict):
+    """
+    Print runtime summary at the very end so it is visible
+    in server logs without scrolling back.
+    """
+
+    print("\n" + "=" * 80)
+    print("[FINAL RUNTIME SUMMARY]")
+    print("=" * 80)
+
+    if not runtime_summary:
+        print("No runtime information recorded.")
+    else:
+        for name, seconds in runtime_summary.items():
+            print(
+                f"{name:<20}: "
+                f"{seconds:.2f} seconds | "
+                f"{format_minutes(seconds)} minutes"
+            )
+
+    print("=" * 80 + "\n")
+
+
+# ======================================================
 # MAIN ROUTER
 # ======================================================
 
@@ -111,6 +143,8 @@ def main():
     mode = cfg["experiment"]["mode"]
     stage = cfg["experiment"].get("stage", "train_predict")
 
+    runtime_summary = {}
+
     print("=" * 80)
     print("SLMADLS / AdaLogSLM")
     print(f"Project root : {PROJECT_ROOT}")
@@ -125,7 +159,12 @@ def main():
     # This stage is shared by both modes.
     # It only loads predictions.csv and runs grid search.
     if stage == "posthoc_only":
+        start_time = time.perf_counter()
+
         run_posthoc_only(cfg)
+
+        runtime_summary["posthoc_only"] = time.perf_counter() - start_time
+        print_time_summary(runtime_summary)
         return
 
     # --------------------------------------------------
@@ -134,22 +173,46 @@ def main():
     if mode == "in_domain":
 
         if stage == "train":
+            start_time = time.perf_counter()
+
             train_in_domain(
                 cfg,
                 str(config_path),
             )
 
+            runtime_summary["train"] = time.perf_counter() - start_time
+            print_time_summary(runtime_summary)
+
         elif stage == "predict":
+            start_time = time.perf_counter()
+
             predict_in_domain(
                 cfg,
                 str(config_path),
             )
 
+            runtime_summary["predict"] = time.perf_counter() - start_time
+            print_time_summary(runtime_summary)
+
         elif stage == "train_predict":
-            run_in_domain(
+            total_start_time = time.perf_counter()
+
+            train_start_time = time.perf_counter()
+            train_in_domain(
                 cfg,
                 str(config_path),
             )
+            runtime_summary["train"] = time.perf_counter() - train_start_time
+
+            predict_start_time = time.perf_counter()
+            predict_in_domain(
+                cfg,
+                str(config_path),
+            )
+            runtime_summary["predict"] = time.perf_counter() - predict_start_time
+
+            runtime_summary["total"] = time.perf_counter() - total_start_time
+            print_time_summary(runtime_summary)
 
         else:
             raise ValueError(
@@ -167,22 +230,46 @@ def main():
     elif mode == "fewshot_target_adaptation":
 
         if stage == "train":
+            start_time = time.perf_counter()
+
             train_fewshot_target_adaptation(
                 cfg,
                 str(config_path),
             )
 
+            runtime_summary["train"] = time.perf_counter() - start_time
+            print_time_summary(runtime_summary)
+
         elif stage == "predict":
+            start_time = time.perf_counter()
+
             predict_fewshot_target_adaptation(
                 cfg,
                 str(config_path),
             )
 
+            runtime_summary["predict"] = time.perf_counter() - start_time
+            print_time_summary(runtime_summary)
+
         elif stage == "train_predict":
-            run_fewshot_target_adaptation(
+            total_start_time = time.perf_counter()
+
+            train_start_time = time.perf_counter()
+            train_fewshot_target_adaptation(
                 cfg,
                 str(config_path),
             )
+            runtime_summary["train"] = time.perf_counter() - train_start_time
+
+            predict_start_time = time.perf_counter()
+            predict_fewshot_target_adaptation(
+                cfg,
+                str(config_path),
+            )
+            runtime_summary["predict"] = time.perf_counter() - predict_start_time
+
+            runtime_summary["total"] = time.perf_counter() - total_start_time
+            print_time_summary(runtime_summary)
 
         else:
             raise ValueError(
