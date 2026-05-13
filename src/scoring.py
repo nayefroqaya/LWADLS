@@ -189,6 +189,8 @@ def evaluate_scores(
         target_names=["normal", "anomaly"],
         zero_division=0,
         output_dict=True,
+    digits=3,
+
     )
 
     report_text = classification_report(
@@ -198,6 +200,8 @@ def evaluate_scores(
         target_names=["normal", "anomaly"],
         zero_division=0,
         output_dict=False,
+    digits=3
+
     )
 
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
@@ -350,7 +354,8 @@ def run_posthoc_grid_search(
                 labels=[0, 1],
                 target_names=["normal", "anomaly"],
                 output_dict=True,
-                zero_division=0,
+                zero_division=0, digits=3
+
             )
 
             cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
@@ -479,7 +484,8 @@ def run_posthoc_grid_search(
         best["y_pred"],
         labels=[0, 1],
         target_names=["normal", "anomaly"],
-        zero_division=0,
+        zero_division=0,     digits=3
+
     )
 
     best_output = f"""
