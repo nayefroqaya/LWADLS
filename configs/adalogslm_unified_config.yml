@@ -118,8 +118,8 @@ text:
 # SMALL LANGUAGE MODEL
 # ======================================================
 model:
-  student_name: "microsoft/MiniLM-L12-H384-uncased"
-
+  #student_name: "microsoft/MiniLM-L12-H384-uncased"
+  student_name: "google-bert/bert-large-uncased"
   # MiniLM/BERT supports maximum 512 tokens.
   # Do NOT use 1024 with this model.
   max_length: 512
