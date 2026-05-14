@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_BGL_SP_150MB_ratio_TH_1G_to_HDFS"
+  name: "AdaLogSLM_BGL_SP_150MB_ratio_TH_1G_to_HDFS_LLM"
   mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_BGL_SP_150MB_ratio_TH_1G_to_HDFS"
+  output_dir: "../outputs/AdaLogSLM_BGL_SP_150MB_ratio_TH_1G_to_HDFS_LLM"
 
 # ======================================================
 # PATHS
