@@ -19,7 +19,7 @@
 experiment:
   name: "AdaLogSLM_HDFS_TH_1G_SP_150MB_ratio_to_BGL_LLM"
   mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
-  stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
+  stage: "predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_HDFS_TH_1G_SP_150MB_ratio_to_BGL_LLM"
 
