@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_TH_1G_LLM"
+  name: "AdaLogSLM_HDFS"
   mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_TH_1G_LLM"
+  output_dir: "../outputs/AdaLogSLM_HDFS"
 
 # ======================================================
 # PATHS
@@ -65,7 +65,7 @@ datasets:
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
   in_domain:
-    dataset_name: "TH_1G"
+    dataset_name: "HDFS"
     train_split: "train"
     val_split: "val"
     test_split: "test"
@@ -118,8 +118,8 @@ text:
 # SMALL LANGUAGE MODEL
 # ======================================================
 model:
-  #student_name: "microsoft/MiniLM-L12-H384-uncased"
-  student_name: "google-bert/bert-large-uncased"
+  student_name: "microsoft/MiniLM-L12-H384-uncased"
+  #student_name: "google-bert/bert-large-uncased"
   # MiniLM/BERT supports maximum 512 tokens.
   # Do NOT use 1024 with this model.
   max_length: 512
@@ -171,7 +171,7 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  num_prototypes: 20
+  num_prototypes: 10 #20
 
   # options: ["kmeans", "random"]
   prototype_method: "kmeans"
