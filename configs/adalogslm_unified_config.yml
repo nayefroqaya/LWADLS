@@ -136,7 +136,7 @@ model:
 # ======================================================
 training:
   device: "auto"
-  batch_size: 8 #16
+  batch_size:  16
 
   # Used in fewshot_target_adaptation mode.------------------
   source_epochs: 5 # 3

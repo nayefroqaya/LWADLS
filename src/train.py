@@ -19,6 +19,7 @@ def train_normality(
     stage_name: str = "train",
 ):
     model.train()
+
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     history: List[Dict[str, Any]] = []
@@ -32,7 +33,8 @@ def train_normality(
         progress = tqdm(loader, desc=f"{stage_name} epoch {epoch}/{epochs}")
 
         for batch in progress:
-            optimizer.zero_grad()
+            #optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
@@ -65,5 +67,8 @@ def train_normality(
             "mlm_loss": total_mlm / max(n, 1),
             "center_loss": total_center / max(n, 1),
         })
+        # Put empty_cache here, after the epoch is finished
+        if str(device).startswith("cuda"):
+            torch.cuda.empty_cache()
 
     return history
