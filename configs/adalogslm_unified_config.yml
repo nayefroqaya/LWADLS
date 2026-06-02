@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_SP_150MB_ratio"
-  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
+  name: "AdaLogSLM_BGL_TH_1G_To_SP_150MB_ratio"
+  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_SP_150MB_ratio"
+  output_dir: "../outputs/AdaLogSLM_BGL_TH_1G_To_SP_150MB_ratio"
 
 # ======================================================
 # PATHS
@@ -80,7 +80,7 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["TH_1G"]
+    source_datasets: ["TH_1G","BGL"]
     source_train_split: "train"
 
     target_dataset: "SP_150MB_ratio"
@@ -92,7 +92,7 @@ datasets:
     target_val_normal_only: true
     target_test_normal_only: false
 
-    target_normal_ratio: 0.20
+    target_normal_ratio: 0.10  # 0.20
     target_normal_max_samples: null
 
 # ======================================================
@@ -171,7 +171,7 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  num_prototypes: 30 #25 #5  #10 #20
+  num_prototypes: 20 #25 #5  #10 #20
 
   # options: ["kmeans", "random"]
   prototype_method: "kmeans"
