@@ -171,7 +171,7 @@ normal_center:
 
   # 1  = old behavior: one normal center
   # >1 = multi-prototype normal centers
-  num_prototypes: 25 #25 #5  #10 #20
+  num_prototypes: 30 #25 #5  #10 #20
 
   # options: ["kmeans", "random"]
   prototype_method: "kmeans"
