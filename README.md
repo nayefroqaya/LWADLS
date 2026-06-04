@@ -1,23 +1,97 @@
-# AdaLogSLM Updated Project
+# AdaLogSLM
 
-This project implements a unified semi-supervised SLM anomaly detection framework with two modes:
+AdaLogSLM is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It fine-tunes a MiniLM-based masked language model on normal log sequences and detects anomalies using a hybrid score that combines masked language modeling loss and distance to normal prototype embeddings.
 
-1. `in_domain`
-2. `fewshot_target_adaptation`
+## Overview
 
-It matches the YAML structure in `configs/adalogslm_unified_config.yml`.
+AdaLogSLM supports two main experimental settings:
 
-## Supported input
+1. **In-domain anomaly detection**
+   - Train and test on the same dataset.
+   - Example: BGL → BGL.
 
-The code loads `.pkl` split files such as:
+2. **Few-shot target adaptation**
+   - Train on normal sequences from one or more source datasets.
+   - Adapt using a small number of normal target-domain sequences.
+   - Evaluate on the target test set.
 
-```text
-../datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
-../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
-../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
+The framework has three stages:
+
+1. **Semi-supervised SLM training**
+2. **Prediction**
+3. **Post-hoc calibration**
+
+## Main Features
+
+- Semi-supervised training using normal sequences only.
+- Fine-tuning of a MiniLM-based masked language model.
+- Center/prototype-based normality modeling.
+- Hybrid anomaly score combining MLM loss and prototype distance.
+- Percentile-based threshold calibration.
+- Optional post-hoc grid search for score weights and thresholds.
+- Support for in-domain and few-shot cross-dataset settings.
+
+## Method Summary
+
+AdaLogSLM learns normal log behavior from normal sequences only. During prediction, each test sequence receives an anomaly score based on:
+
+1. **MLM loss**: token-level irregularity.
+2. **Prototype distance**: representation-level deviation from normal behavior.
+
+The anomaly score is computed as:
+
+```math
+score = \alpha \cdot MLM\_loss + \beta \cdot center\_distance
 ```
 
-The required columns are configured in YAML:
+A sequence is classified as anomalous if its score is higher than the calibrated threshold.
+
+## Project Structure
+
+```text
+.
+├── main.py
+├── requirements.txt
+├── configs/
+│   └── adalogslm_unified_config.yml
+├── src/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── data.py
+│   ├── model.py
+│   ├── train.py
+│   ├── losses.py
+│   ├── scoring.py
+│   ├── run.py
+│   └── utils.py
+└── README.md
+```
+
+## Installation
+
+Create a Python environment and install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+Main dependencies:
+
+```text
+torch
+transformers
+scikit-learn
+pandas
+numpy
+PyYAML
+tqdm
+```
+
+## Data Format
+
+The input data should be provided as preprocessed `.pkl` or `.csv` split files.
+
+The required columns are configured in the YAML file:
 
 ```yaml
 columns:
@@ -28,78 +102,81 @@ columns:
   dataset: "DatasetName"
 ```
 
-The code constructs sequence-level samples by grouping events using `Node_block_id`.
+Log events are grouped by `Node_block_id` to form log sequences. Event templates are sorted by timestamp, concatenated using `[SEP]`, and then tokenized before being passed to the SLM.
 
-## Run
-
-```bash
-pip install -r requirements.txt
-python -m src.run --config configs/adalogslm_unified_config.yml
-```
-
-## Change mode
-
-For in-domain:
-
-```yaml
-experiment:
-  mode: "in_domain"
-```
-
-For few-shot target adaptation:
-
-```yaml
-experiment:
-  mode: "fewshot_target_adaptation"
-```
-
-## Important design
-
-For cross-dataset/few-shot mode, the code uses:
+Example split files:
 
 ```text
-source normal training: BGL + HDFS
-target normal adaptation: TH_1G small normal subset
-target normal center: TH_1G validation normal logs
-target threshold: TH_1G validation normal logs
-target test: TH_1G test logs
+../datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
+../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
+../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 ```
 
-The model does not use source normal center for target detection.
+## Configuration
 
-
-## Run from PyCharm
-
-Open the project folder in PyCharm:
-
-```text
-adalogslm_project_pycharm/
-```
-
-Then run:
-
-```text
-main.py
-```
-
-The default config is:
+The main configuration file is:
 
 ```text
 configs/adalogslm_unified_config.yml
 ```
 
-To change the running mode, edit this part in the YAML:
-
-```yaml
-experiment:
-  mode: "fewshot_target_adaptation"
-```
-
-or:
+To run in-domain detection:
 
 ```yaml
 experiment:
   mode: "in_domain"
 ```
 
-No terminal command is required if you run `main.py` directly from PyCharm.
+To run few-shot target adaptation:
+
+```yaml
+experiment:
+  mode: "fewshot_target_adaptation"
+```
+
+Supported stages:
+
+```text
+train
+predict
+posthoc_only
+train_predict
+```
+
+Example:
+
+```yaml
+experiment:
+  mode: "fewshot_target_adaptation"
+  stage: "train_predict"
+```
+
+## Running the Code
+
+Run with the default configuration:
+
+```bash
+python main.py
+```
+
+## Notes
+
+- Training is semi-supervised and uses normal sequences only.
+- Target anomaly labels are not used during few-shot adaptation.
+- Normal validation sequences are used to compute normal prototype(s) and calibrate the anomaly threshold.
+- Test labels are used only for evaluation and offline post-hoc calibration.
+- Post-hoc calibration changes only the scoring weights and threshold; it does not update the model.
+
+## Citation
+
+If you use this code, please cite our paper:
+
+```bibtex
+@article{roqaya2026adalogslm,
+  title={LogSLM: Few-Shot SLM Adaptation for Anomaly
+Detection in Log Series},
+  author={Roqaya, Nayef and Papenbrock, Thorsten},
+  journal={},
+  year={2026}
+}
+```
