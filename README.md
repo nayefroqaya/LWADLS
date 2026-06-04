@@ -1,10 +1,10 @@
-# AdaLogSLM
+# LogSLM
 
-AdaLogSLM is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It fine-tunes a MiniLM-based masked language model on normal log sequences and detects anomalies using a hybrid score that combines masked language modeling loss and distance to normal prototype embeddings.
+LogSLM is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It fine-tunes a MiniLM-based masked language model on normal log sequences and detects anomalies using a hybrid score that combines masked language modeling loss and distance to normal prototype embeddings.
 
 ## Overview
 
-AdaLogSLM supports two main experimental settings:
+LogSLM supports two main experimental settings:
 
 1. **In-domain anomaly detection**
    - Train and test on the same dataset.
@@ -33,7 +33,7 @@ The framework has three stages:
 
 ## Method Summary
 
-AdaLogSLM learns normal log behavior from normal sequences only. During prediction, each test sequence receives an anomaly score based on:
+LogSLM learns normal log behavior from normal sequences only. During prediction, each test sequence receives an anomaly score based on:
 
 1. **MLM loss**: token-level irregularity.
 2. **Prototype distance**: representation-level deviation from normal behavior.
