@@ -8,12 +8,16 @@ LogSLM supports two main experimental settings:
 
 1. **In-domain anomaly detection**
    - Train and test on the same dataset.
-   - Example: BGL → BGL.
+   - Example: BGL Training set → BGL Testing set.
 
 2. **Few-shot target adaptation**
    - Train on normal sequences from one or more source datasets.
    - Adapt using a small number of normal target-domain sequences.
    - Evaluate on the target test set.
+   - Example: (BGL) Training set → HDFS Testing set. (Use Fraction)
+   - Example: (BGL + HDFS) Training sets → Thunderbird Testing set. (Use Fraction)
+   - Example: (BGL + HDFS + Spirit) Training sets → Thunderbird Testing set. (Use Fraction)
+
 
 The framework has three stages:
 
