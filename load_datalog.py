@@ -129,34 +129,32 @@ class LogdataRead:
 
             return df
         '''
+
         def fill_unknown_node_block_id(df):
 
-              prev_valid_id = None
+            prev_valid_id = None
 
-              for i in tqdm(range(len(df)), desc="Processing Rows", unit="row"):
-                  current_id = df.loc[i, 'Node_block_id']
+            for i in tqdm(range(len(df)), desc="Processing Rows", unit="row"):
+                current_id = df.loc[i, 'Node_block_id']
 
-                  if current_id != 'UNKNOWN':
-                      prev_valid_id = current_id
-                  else:
-                      if prev_valid_id is not None:
-                         df.loc[i, 'Node_block_id'] = prev_valid_id
+                if current_id != 'UNKNOWN':
+                    prev_valid_id = current_id
+                else:
+                    if prev_valid_id is not None:
+                        df.loc[i, 'Node_block_id'] = prev_valid_id
 
-              return df
-
-
-
+            return df
 
         if dataset == 'BGL':
 
             #  Define dtype mapping for efficient memory usage
             dtype_mapping = {"Node": "str", "NodeRepeat": "str", "EventTemplate": "category", "Content": "str",
-                "Date": "str", "Time": "str", "Level": "category", "Component": "category", "EventId": "str",
-                "Label": "category"}
+                             "Date": "str", "Time": "str", "Level": "category", "Component": "category",
+                             "EventId": "str", "Label": "category"}
 
             df = pd.read_csv(f'../datasets/{dataset}/{dataset}.log_structured.csv', dtype=dtype_mapping)
             df.info()
-            x=len(df)
+            x = len(df)
             #  Rename columns for consistency
             df = df.rename(columns={"Node": "Node_block_id"})
 
@@ -164,7 +162,8 @@ class LogdataRead:
             df['Node_block_id'] = df['Node_block_id'].fillna('UNKNOWN')
             df = fill_unknown_node_block_id(df)
 
-            df = df[~df['Node_block_id'].astype(str).str.contains("UNKNOWN", case=False, na=False)].reset_index(drop=True)
+            df = df[~df['Node_block_id'].astype(str).str.contains("UNKNOWN", case=False, na=False)].reset_index(
+                drop=True)
             total_rows = len(df)
             print("Total rows in df :", total_rows)
 
@@ -172,8 +171,7 @@ class LogdataRead:
             empty_blocks = counts_per_block[counts_per_block == 0].index.tolist()
             print("Node_block_id with 0 rows:", empty_blocks)
             print("Number of empty Node_block_id groups:", len(empty_blocks))
-            #exit()
-
+            # exit()
 
             #  Parse Timestamp Correctly (Format: YYYY-MM-DD-HH.MM.SS.ffffff)
             df['Timestamp'] = pd.to_datetime(df['Time'], format="%Y-%m-%d-%H.%M.%S.%f", errors='coerce')
@@ -229,7 +227,7 @@ class LogdataRead:
             unknown_blocks = df[df['Node_block_id'].astype(str).str.contains("UNKNOWN", case=False, na=False)]
 
             print("Total rows where Node_block_id contains UNKNOWN:", len(unknown_blocks))
-#            exit()
+            #            exit()
 
             print('check....')
             # Separate Normal & Anomaly Logs
@@ -259,7 +257,7 @@ class LogdataRead:
             df.to_csv(All_dataset_path_as_csv, escapechar='\\', index=False)
 
         elif dataset == 'S_BGL':
-            path= f'../datasets/BGL/BGL.csv'
+            path = f'../datasets/BGL/BGL.csv'
             df = pd.read_csv(path, escapechar='\\')
             df.info()
             num_templates = df['EventTemplate'].nunique()
@@ -300,9 +298,9 @@ class LogdataRead:
             stable_part = subset_df[subset_df['EventTemplate'].isin(stable_templates)]
             unstable_part = subset_df[subset_df['EventTemplate'].isin(unstable_templates)]
 
-            #total_size = len(subset_df)
-            #stable_size = total_size // 2
-            #unstable_size = total_size - stable_size
+            # total_size = len(subset_df)
+            # stable_size = total_size // 2
+            # unstable_size = total_size - stable_size
 
             total_size = len(subset_df)
             stable_size = int(total_size * 0.25)
@@ -344,7 +342,7 @@ class LogdataRead:
                                        len(stable_only_df[stable_only_df['LogType'] == 'Anomaly']))
 
             stable_normal_sample = stable_only_df[stable_only_df['LogType'] == 'Normal'].sample(n=stable_normal_count,
-                random_state=42)
+                                                                                                random_state=42)
             stable_anomaly_sample = stable_only_df[stable_only_df['LogType'] == 'Anomaly'].sample(
                 n=stable_anomaly_count, random_state=42)
 
@@ -378,11 +376,11 @@ class LogdataRead:
 
             # Optimized Data Loading (Using dtypes for Memory Efficiency)
             dtype_mapping = {'Node_block_id': 'str', 'Content': 'str', 'Date': 'str', 'Time': 'str',
-                'Level': 'category', 'Component': 'category', 'EventId': 'category', 'EventTemplate': 'str',
-                'ParameterList': 'str'}
+                             'Level': 'category', 'Component': 'category', 'EventId': 'category',
+                             'EventTemplate': 'str', 'ParameterList': 'str'}
             df = pd.read_csv(dataset_path, dtype=dtype_mapping)
             df.info()
-            x=len(df)
+            x = len(df)
             # Extract Block ID
             df["Node_block_id"] = df["Content"].apply(self.get_block_id_hdfs)
             df_missing = df[df['Node_block_id'].isna()]
@@ -486,7 +484,6 @@ class LogdataRead:
             print(f"Anomaly: {n_anomaly} ({n_anomaly / n_total:.2%})")
             print(' ----- Completed ------')
 
-
             #  Check Memory Usage
             df.info()
             #  Save Processed Dataset Efficiently
@@ -499,7 +496,7 @@ class LogdataRead:
 
             df = pd.read_csv(f'../datasets/{dataset}/{dataset}.log_structured.csv', dtype=dtype_mapping)
             df.info()
-            x=len(df)
+            x = len(df)
 
             #  Rename columns for consistency
             df = df.rename(columns={"User": "Node_block_id"})
@@ -528,7 +525,6 @@ class LogdataRead:
             print(' length df before windows ' + str(len(df)))
 
             def process_logs(df, window_size=120):
-
 
                 df = df.copy()
                 df.sort_values(by=['Node_block_id', 'Timestamp'], inplace=True)  # Ensure order
@@ -589,7 +585,7 @@ class LogdataRead:
             df.to_csv(All_dataset_path_as_csv, escapechar='\\', index=False)
 
 
-        elif dataset == 'TH_1G_ratio' or dataset == 'TH_2G_ratio' or dataset == 'TH_3G_ratio' or dataset == 'TH_5G_ratio' or dataset == 'TH_Full' or dataset == 'TH_6G_ratio' or dataset == 'TH_9G_ratio' or dataset=='TH_16G_ratio' or dataset == 'TH_12G_ratio' or dataset == 'TH_20G_ratio':
+        elif dataset == 'TH_1G_ratio' or dataset == 'TH_2G_ratio' or dataset == 'TH_3G_ratio' or dataset == 'TH_5G_ratio' or dataset == 'TH_Full' or dataset == 'TH_6G_ratio' or dataset == 'TH_9G_ratio' or dataset == 'TH_16G_ratio' or dataset == 'TH_12G_ratio' or dataset == 'TH_20G_ratio':
             #  Define dtype mapping for efficient memory usage
             dtype_mapping = {"User": "str", "EventTemplate": "category", "Content": "str", "Date": "str", "Time": "str",
                              "Component": "category", "EventId": "str", "Label": "category"}
@@ -622,7 +618,7 @@ class LogdataRead:
             df = df[['Timestamp', 'Date', 'Time', 'Content', 'EventId', 'EventTemplate', 'processed_EventTemplate',
                      'Node_block_id', 'Label']]
 
-            #-------take anomaly ration and normal ration based on original dataset. In Thunderbird 4.3% Anomaly
+            # -------take anomaly ration and normal ration based on original dataset. In Thunderbird 4.3% Anomaly
             '''
             r = 0.043
             a = df[df['Label'] != '-']  # anomaly
@@ -701,7 +697,6 @@ class LogdataRead:
             print(f"Updated df length: {len(df)}")
             '''
 
-
             n_total = len(df)
             n_anomaly = (df['Label'] != '-').sum()
             n_normal = (df['Label'] == '-').sum()
@@ -714,7 +709,7 @@ class LogdataRead:
 
             df.sort_values(by=['Timestamp'], inplace=True)  # Ensure order
 
-            #exit()
+            # exit()
 
             print(' length df before windows ' + str(len(df)))
 
@@ -788,13 +783,16 @@ class LogdataRead:
             dtype_mapping = {"ADDR": "str", "EventTemplate": "category", "Content": "str", "Date": "str", "Time": "str",
                              "Component": "category", "EventId": "str"}
 
-            df_abnormal = pd.read_csv(f'../datasets/{dataset}/{dataset}_abnormal.log_structured.csv', dtype=dtype_mapping)
+            df_abnormal = pd.read_csv(f'../datasets/{dataset}/{dataset}_abnormal.log_structured.csv',
+                                      dtype=dtype_mapping)
             df_abnormal['Label'] = 'AAAA'
 
-            df_normal_1 = pd.read_csv(f'../datasets/{dataset}/{dataset}_normal1.log_structured.csv', dtype=dtype_mapping)
+            df_normal_1 = pd.read_csv(f'../datasets/{dataset}/{dataset}_normal1.log_structured.csv',
+                                      dtype=dtype_mapping)
             df_normal_1['Label'] = '-'
 
-            df_normal_2 = pd.read_csv(f'../datasets/{dataset}/{dataset}_normal2.log_structured.csv', dtype=dtype_mapping)
+            df_normal_2 = pd.read_csv(f'../datasets/{dataset}/{dataset}_normal2.log_structured.csv',
+                                      dtype=dtype_mapping)
             df_normal_2['Label'] = '-'
 
             df = pd.concat([df_abnormal, df_normal_1, df_normal_2], ignore_index=True)
@@ -837,7 +835,7 @@ class LogdataRead:
             print("Half dataset rows:", len(df_half))
             print("Normal blocks selected:", len(sampled_normal))
             print("Anomaly blocks selected:", len(sampled_anomaly))
-            df=df_half
+            df = df_half
 
             print(' length df before windows ' + str(len(df)))
 
@@ -901,10 +899,11 @@ class LogdataRead:
 
         elif dataset == 'HDO':
             #  Define dtype mapping for efficient memory usage
-            dtype_mapping = {"Process": "str", "EventTemplate": "category", "Content": "str", "Date": "str", "Time": "str",
-                             "Component": "category", "EventId": "str"}
+            dtype_mapping = {"Process": "str", "EventTemplate": "category", "Content": "str", "Date": "str",
+                             "Time": "str", "Component": "category", "EventId": "str"}
 
-            df_abnormal = pd.read_csv(f'../datasets/{dataset}/{dataset}_abnormal.log_structured.csv', dtype=dtype_mapping)
+            df_abnormal = pd.read_csv(f'../datasets/{dataset}/{dataset}_abnormal.log_structured.csv',
+                                      dtype=dtype_mapping)
             df_abnormal['Label'] = 'AAAA'
 
             df_normal = pd.read_csv(f'../datasets/{dataset}/{dataset}_normal.log_structured.csv', dtype=dtype_mapping)
@@ -917,14 +916,14 @@ class LogdataRead:
             print(f"Number of normal rows: {len_normal}")
             df_abnormal.info()
             df_normal.info()
-#            exit()
+            #            exit()
 
             # --- Sampling ---
             # Take 20,000 normal logs
-#            df_normal_sampled = df_normal.sample(n=20000, random_state=42)
+            #            df_normal_sampled = df_normal.sample(n=20000, random_state=42)
 
             # Take 5% of abnormal logs
-#            df_abnormal_sampled = df_abnormal.sample(frac=1000, random_state=42)
+            #            df_abnormal_sampled = df_abnormal.sample(frac=1000, random_state=42)
             df_normal_sampled = df_normal.sample(n=25000, random_state=42)
 
             # Take exactly 1,000 abnormal logs
@@ -940,9 +939,8 @@ class LogdataRead:
             print("Total:", len(df_final))
             print('')
 
-
-            df=df_final
-#            df["Timestamp"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%Y-%m-%d %H:%M:%S")
+            df = df_final
+            #            df["Timestamp"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%Y-%m-%d %H:%M:%S")
             df["Timestamp"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
             # Process EventTemplate
@@ -951,6 +949,7 @@ class LogdataRead:
             nan_count = df['processed_EventTemplate'].isna().sum()
             print(f"Number of NaN values in 'processed_EventTemplate': {nan_count}")
             df['processed_EventTemplate'] = df['processed_EventTemplate'].astype(str)
+
             def process_logs(df, window_size=120):
                 df = df.copy()
                 df.sort_values(by=['Timestamp'], inplace=True)  # Ensure order
@@ -977,6 +976,7 @@ class LogdataRead:
                             blocks.append(entry)
 
                 return pd.DataFrame(blocks)
+
             df = process_logs(df, window_size=120)  # Block , Updated_Label
 
             # Separate Normal & Anomaly Logs
@@ -993,7 +993,6 @@ class LogdataRead:
             print(f"Unique anomaly blocks: {len(df4):,}")  # 36,251
             print(f"All unique blocks: {len(df_block):,}")
 
-
             df = df.rename(columns={'Label': 'Original_Label'})
             df = df.rename(columns={'Block': 'Node_block_id', 'Updated_Label': 'Label'})
             df.info()
@@ -1002,14 +1001,14 @@ class LogdataRead:
             # Save Processed Dataset Efficiently
             df.to_csv(All_dataset_path_as_csv, escapechar='\\', index=False)
 
-        elif dataset == 'SP_150MB' or dataset == 'SP_100MB' :
+        elif dataset == 'SP_150MB' or dataset == 'SP_100MB':
             #  Define dtype mapping for efficient memory usage
             dtype_mapping = {"User": "str", "EventTemplate": "category", "Content": "str", "Date": "str", "Time": "str",
                              "Component": "category", "EventId": "str", "Label": "category"}
 
             df = pd.read_csv(f'../datasets/{dataset}/{dataset}.log_structured.csv', dtype=dtype_mapping)
             df.info()
-            x=len(df)
+            x = len(df)
 
             #  Rename columns for consistency
             df = df.rename(columns={"User": "Node_block_id"})
@@ -1036,6 +1035,7 @@ class LogdataRead:
                      'Node_block_id', 'Label']]
 
             print(' length df before windows ' + str(len(df)))
+
             def process_logs(df, window_size=120):
                 df = df.copy()
                 df.sort_values(by=['Node_block_id', 'Timestamp'], inplace=True)  # Ensure order
@@ -1097,7 +1097,7 @@ class LogdataRead:
 
 
 
-        elif dataset == 'SP_150MB_ratio' or dataset == 'SP_100MB_ratio' or dataset=='SP_1G_ratio':
+        elif dataset == 'SP_150MB_ratio' or dataset == 'SP_100MB_ratio' or dataset == 'SP_1G_ratio':
             #  Define dtype mapping for efficient memory usage
             dtype_mapping = {"User": "str", "EventTemplate": "category", "Content": "str", "Date": "str", "Time": "str",
                              "Component": "category", "EventId": "str", "Label": "category"}
@@ -1139,8 +1139,7 @@ class LogdataRead:
             print(f"Anomaly: {n_anomaly} ({n_anomaly / n_total:.2%})")
             print(len(df))
 
-
-            #-------take anomaly ration and normal ration based on original dataset. In Spirit 2.6% Anomaly
+            # -------take anomaly ration and normal ration based on original dataset. In Spirit 2.6% Anomaly
             r = 0.026
 
             a = df[df['Label'] != '-']  # anomaly
@@ -1166,18 +1165,11 @@ class LogdataRead:
             print(f"Anomaly: {n_anomaly} ({n_anomaly / n_total:.2%})")
             print(len(df))
             print(len(df_final))
-            df=df_final  # new dataset with the new portion
+            df = df_final  # new dataset with the new portion
             print(len(df))
 
-
-
-
-
-            #exit()
-            #============================================================
-
-
-
+            # exit()
+            # ============================================================
 
             print(' length df before windows ' + str(len(df)))
 
@@ -1237,9 +1229,6 @@ class LogdataRead:
             df = df.rename(columns={'Block': 'Node_block_id', 'Updated_Label': 'Label'})
             df.info()
 
-
-
             print(' save as csv file ....')
             # Save Processed Dataset Efficiently
             df.to_csv(All_dataset_path_as_csv, escapechar='\\', index=False)
-

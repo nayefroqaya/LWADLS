@@ -7,17 +7,8 @@ from tqdm import tqdm
 from .losses import center_loss
 
 
-def train_normality(
-    model,
-    loader,
-    device,
-    epochs: int,
-    learning_rate: float,
-    weight_decay: float,
-    center_loss_weight: float,
-    gradient_clip_norm: float | None = None,
-    stage_name: str = "train",
-):
+def train_normality(model, loader, device, epochs: int, learning_rate: float, weight_decay: float,
+        center_loss_weight: float, gradient_clip_norm: float | None = None, stage_name: str = "train", ):
     model.train()
 
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -33,7 +24,7 @@ def train_normality(
         progress = tqdm(loader, desc=f"{stage_name} epoch {epoch}/{epochs}")
 
         for batch in progress:
-            #optimizer.zero_grad()
+            # optimizer.zero_grad()
             optimizer.zero_grad(set_to_none=True)
 
             input_ids = batch["input_ids"].to(device)
@@ -61,12 +52,8 @@ def train_normality(
 
             progress.set_postfix(loss=total_loss / max(n, 1))
 
-        history.append({
-            "epoch": epoch,
-            "loss": total_loss / max(n, 1),
-            "mlm_loss": total_mlm / max(n, 1),
-            "center_loss": total_center / max(n, 1),
-        })
+        history.append({"epoch": epoch, "loss": total_loss / max(n, 1), "mlm_loss": total_mlm / max(n, 1),
+            "center_loss": total_center / max(n, 1), })
         # Put empty_cache here, after the epoch is finished
         if str(device).startswith("cuda"):
             torch.cuda.empty_cache()

@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from tqdm import tqdm
 from sklearn.cluster import KMeans
+from tqdm import tqdm
 
 
-def center_loss(
-    embeddings: torch.Tensor,
-    center: torch.Tensor | None = None,
-):
+def center_loss(embeddings: torch.Tensor, center: torch.Tensor | None = None, ):
     """
     Training-time compactness loss.
 
@@ -32,12 +29,7 @@ def center_loss(
 
 
 @torch.no_grad()
-def collect_embeddings(
-    model,
-    loader,
-    device,
-    desc: str = "Collecting embeddings",
-):
+def collect_embeddings(model, loader, device, desc: str = "Collecting embeddings", ):
     model.eval()
     vectors = []
 
@@ -48,11 +40,7 @@ def collect_embeddings(
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
 
-        out = model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=labels,
-        )
+        out = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels, )
 
         vectors.append(out["embedding"].detach().cpu())
 
@@ -63,15 +51,8 @@ def collect_embeddings(
 
 
 @torch.no_grad()
-def compute_center(
-    model,
-    loader,
-    device,
-    desc: str = "Computing normal center",
-    num_prototypes: int = 1,
-    prototype_method: str = "kmeans",
-    seed: int = 42,
-):
+def compute_center(model, loader, device, desc: str = "Computing normal center", num_prototypes: int = 1,
+        prototype_method: str = "kmeans", seed: int = 42, ):
     """
     Compute normal center(s).
 
@@ -82,12 +63,7 @@ def compute_center(
         returns tensor shape: [num_prototypes, projection_dim]
     """
 
-    embeddings = collect_embeddings(
-        model=model,
-        loader=loader,
-        device=device,
-        desc=desc,
-    )
+    embeddings = collect_embeddings(model=model, loader=loader, device=device, desc=desc, )
 
     n_samples = embeddings.size(0)
     dim = embeddings.size(1)
@@ -100,25 +76,17 @@ def compute_center(
         return center
 
     if num_prototypes > n_samples:
-        print(
-            f"[Warning] num_prototypes={num_prototypes} is larger than "
-            f"number of samples={n_samples}. Using num_prototypes={n_samples}."
-        )
+        print(f"[Warning] num_prototypes={num_prototypes} is larger than "
+              f"number of samples={n_samples}. Using num_prototypes={n_samples}.")
         num_prototypes = n_samples
 
-    print(
-        f"[Multi-prototype center] method={prototype_method}, "
-        f"k={num_prototypes}, samples={n_samples}, dim={dim}"
-    )
+    print(f"[Multi-prototype center] method={prototype_method}, "
+          f"k={num_prototypes}, samples={n_samples}, dim={dim}")
 
     x = embeddings.numpy()
 
     if prototype_method == "kmeans":
-        kmeans = KMeans(
-            n_clusters=num_prototypes,
-            random_state=seed,
-            n_init=10,
-        )
+        kmeans = KMeans(n_clusters=num_prototypes, random_state=seed, n_init=10, )
         kmeans.fit(x)
         centers = torch.tensor(kmeans.cluster_centers_, dtype=torch.float32)
 
@@ -128,10 +96,8 @@ def compute_center(
         centers = embeddings[idx].clone()
 
     else:
-        raise ValueError(
-            f"Unknown prototype_method={prototype_method}. "
-            "Use 'kmeans' or 'random'."
-        )
+        raise ValueError(f"Unknown prototype_method={prototype_method}. "
+                         "Use 'kmeans' or 'random'.")
 
     print(f"[Normal prototypes computed] shape={tuple(centers.shape)}")
 

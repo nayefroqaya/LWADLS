@@ -167,16 +167,4 @@ python main.py
 - Test labels are used only for evaluation and offline post-hoc calibration.
 - Post-hoc calibration changes only the scoring weights and threshold; it does not update the model.
 
-## Citation
 
-If you use this code, please cite our paper:
-
-```bibtex
-@article{roqaya2026adalogslm,
-  title={LogSLM: Few-Shot SLM Adaptation for Anomaly
-Detection in Log Series},
-  author={Roqaya, Nayef and Papenbrock, Thorsten},
-  journal={},
-  year={2026}
-}
-```

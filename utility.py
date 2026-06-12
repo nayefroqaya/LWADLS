@@ -59,8 +59,7 @@ class Utilities:
             df2 = df_features.query("Label != 'Normal'").reset_index(drop=True)  # Anomaly logs
 
             print(f"Normal logs: {len(df1):,}")  # TGH_1G :
-            print(f"Anomaly logs: {len(df2):,}")  # TGH_1G :
-            #exit()
+            print(f"Anomaly logs: {len(df2):,}")  # TGH_1G :  # exit()
 
         # Clean data
         df_features = Utilities.clean_up_df(df_features)
@@ -91,7 +90,7 @@ class Utilities:
         unique_ids = df_features['Node_block_id'].unique()
         total_ids = len(unique_ids)
 
-        if dataset in ['HDFS', 'BGL',  'SP_150MB_ratio', 'TH_1G','S_BGL']:
+        if dataset in ['HDFS', 'BGL', 'SP_150MB_ratio', 'TH_1G', 'S_BGL']:
 
             # Shuffle and split
             shuffled_ids = np.random.permutation(unique_ids)
@@ -104,7 +103,7 @@ class Utilities:
         # Check for overlaps between splits
         set_train, set_val, set_test = set(train_ids), set(val_ids), set(test_ids)
         intersections = {"train_val": set_train.intersection(set_val), "train_test": set_train.intersection(set_test),
-            "val_test": set_val.intersection(set_test)}
+                         "val_test": set_val.intersection(set_test)}
         for k, v in intersections.items():
             print(YELLOW + f"[CHECK] Intersection {k}: {v}" + RESET)
 
@@ -174,8 +173,8 @@ class Utilities:
         # Seq count  Train
         unique_normal_train = train_df[train_df['Label'] == 'Normal']['Node_block_id'].unique()
         unique_anomaly_train = train_df[train_df['Label'] == 'Anomaly']['Node_block_id'].unique()
-        #print(train_df['Label'].unique())
-        #exit()
+        # print(train_df['Label'].unique())
+        # exit()
         # Logs count Train 
         train_normal_logs = (train_df['Label'] == 'Normal').sum()
         train_anomaly_logs = (train_df['Label'] == 'Anomaly').sum()

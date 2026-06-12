@@ -1,51 +1,9 @@
-"""
-PyCharm entry point for SLMADLS / AdaLogSLM.
-
-Run this file directly from PyCharm or terminal.
-
-Default:
-    python main.py
-
-Optional:
-    python main.py --config configs/adalogslm_unified_config.yml
-
-YAML controls the mode and stage:
-
-experiment:
-  mode: "in_domain"
-  stage: "train"
-
-Supported modes:
-    in_domain
-    fewshot_target_adaptation
-
-Supported stages for BOTH modes:
-    train
-        Train and save model, tokenizer, and normal center/prototypes.
-        Does NOT predict.
-
-    predict
-        Load saved model, tokenizer, and center/prototypes.
-        Predict test data.
-        Save reports and predictions.
-        Does NOT retrain.
-
-    posthoc_only
-        Load saved predictions.csv.
-        Run alpha/beta/threshold grid search.
-        Does NOT train or predict.
-
-    train_predict
-        Train + predict + posthoc calibration in one run.
-"""
-
 from __future__ import annotations
 
 import argparse
 import sys
 import time
 from pathlib import Path
-
 
 # ======================================================
 # PROJECT SETUP
@@ -56,21 +14,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
 # ======================================================
 # IMPORT PIPELINE FUNCTIONS
 # ======================================================
 
 from src.config import load_config
-from src.run import (
-    run_in_domain,
-    train_in_domain,
-    predict_in_domain,
-    run_fewshot_target_adaptation,
-    train_fewshot_target_adaptation,
-    predict_fewshot_target_adaptation,
-    run_posthoc_only,
-)
+from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation, predict_fewshot_target_adaptation, run_posthoc_only, )
 
 
 # ======================================================
@@ -78,15 +27,10 @@ from src.run import (
 # ======================================================
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Run SLMADLS / AdaLogSLM from main.py"
-    )
+    parser = argparse.ArgumentParser(description="Run SLMADLS / AdaLogSLM from main.py")
 
-    parser.add_argument(
-        "--config",
-        default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
-        help="Path to YAML config file.",
-    )
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
+        help="Path to YAML config file.", )
 
     return parser.parse_args()
 
@@ -113,11 +57,9 @@ def print_time_summary(runtime_summary: dict):
         print("No runtime information recorded.")
     else:
         for name, seconds in runtime_summary.items():
-            print(
-                f"{name:<20}: "
-                f"{seconds:.2f} seconds | "
-                f"{format_minutes(seconds)} minutes"
-            )
+            print(f"{name:<20}: "
+                  f"{seconds:.2f} seconds | "
+                  f"{format_minutes(seconds)} minutes")
 
     print("=" * 80 + "\n")
 
@@ -134,9 +76,7 @@ def main():
         config_path = PROJECT_ROOT / config_path
 
     if not config_path.exists():
-        raise FileNotFoundError(
-            f"Config file not found: {config_path}"
-        )
+        raise FileNotFoundError(f"Config file not found: {config_path}")
 
     cfg = load_config(str(config_path))
 
@@ -175,10 +115,7 @@ def main():
         if stage == "train":
             start_time = time.perf_counter()
 
-            train_in_domain(
-                cfg,
-                str(config_path),
-            )
+            train_in_domain(cfg, str(config_path), )
 
             runtime_summary["train"] = time.perf_counter() - start_time
             print_time_summary(runtime_summary)
@@ -186,10 +123,7 @@ def main():
         elif stage == "predict":
             start_time = time.perf_counter()
 
-            predict_in_domain(
-                cfg,
-                str(config_path),
-            )
+            predict_in_domain(cfg, str(config_path), )
 
             runtime_summary["predict"] = time.perf_counter() - start_time
             print_time_summary(runtime_summary)
@@ -198,31 +132,23 @@ def main():
             total_start_time = time.perf_counter()
 
             train_start_time = time.perf_counter()
-            train_in_domain(
-                cfg,
-                str(config_path),
-            )
+            train_in_domain(cfg, str(config_path), )
             runtime_summary["train"] = time.perf_counter() - train_start_time
 
             predict_start_time = time.perf_counter()
-            predict_in_domain(
-                cfg,
-                str(config_path),
-            )
+            predict_in_domain(cfg, str(config_path), )
             runtime_summary["predict"] = time.perf_counter() - predict_start_time
 
             runtime_summary["total"] = time.perf_counter() - total_start_time
             print_time_summary(runtime_summary)
 
         else:
-            raise ValueError(
-                f"Unsupported stage for in_domain: {stage}\n"
-                "Supported stages are:\n"
-                "  train\n"
-                "  predict\n"
-                "  posthoc_only\n"
-                "  train_predict"
-            )
+            raise ValueError(f"Unsupported stage for in_domain: {stage}\n"
+                             "Supported stages are:\n"
+                             "  train\n"
+                             "  predict\n"
+                             "  posthoc_only\n"
+                             "  train_predict")
 
     # --------------------------------------------------
     # MODE 2: FEW-SHOT TARGET ADAPTATION
@@ -232,10 +158,7 @@ def main():
         if stage == "train":
             start_time = time.perf_counter()
 
-            train_fewshot_target_adaptation(
-                cfg,
-                str(config_path),
-            )
+            train_fewshot_target_adaptation(cfg, str(config_path), )
 
             runtime_summary["train"] = time.perf_counter() - start_time
             print_time_summary(runtime_summary)
@@ -243,10 +166,7 @@ def main():
         elif stage == "predict":
             start_time = time.perf_counter()
 
-            predict_fewshot_target_adaptation(
-                cfg,
-                str(config_path),
-            )
+            predict_fewshot_target_adaptation(cfg, str(config_path), )
 
             runtime_summary["predict"] = time.perf_counter() - start_time
             print_time_summary(runtime_summary)
@@ -255,39 +175,29 @@ def main():
             total_start_time = time.perf_counter()
 
             train_start_time = time.perf_counter()
-            train_fewshot_target_adaptation(
-                cfg,
-                str(config_path),
-            )
+            train_fewshot_target_adaptation(cfg, str(config_path), )
             runtime_summary["train"] = time.perf_counter() - train_start_time
 
             predict_start_time = time.perf_counter()
-            predict_fewshot_target_adaptation(
-                cfg,
-                str(config_path),
-            )
+            predict_fewshot_target_adaptation(cfg, str(config_path), )
             runtime_summary["predict"] = time.perf_counter() - predict_start_time
 
             runtime_summary["total"] = time.perf_counter() - total_start_time
             print_time_summary(runtime_summary)
 
         else:
-            raise ValueError(
-                f"Unsupported stage for fewshot_target_adaptation: {stage}\n"
-                "Supported stages are:\n"
-                "  train\n"
-                "  predict\n"
-                "  posthoc_only\n"
-                "  train_predict"
-            )
+            raise ValueError(f"Unsupported stage for fewshot_target_adaptation: {stage}\n"
+                             "Supported stages are:\n"
+                             "  train\n"
+                             "  predict\n"
+                             "  posthoc_only\n"
+                             "  train_predict")
 
     else:
-        raise ValueError(
-            f"Unsupported mode: {mode}\n"
-            "Supported modes are:\n"
-            "  in_domain\n"
-            "  fewshot_target_adaptation"
-        )
+        raise ValueError(f"Unsupported mode: {mode}\n"
+                         "Supported modes are:\n"
+                         "  in_domain\n"
+                         "  fewshot_target_adaptation")
 
 
 if __name__ == "__main__":

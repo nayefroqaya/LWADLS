@@ -1,6 +1,7 @@
+import shutil
 from pathlib import Path
 from typing import Any, Dict
-import shutil
+
 import yaml
 
 
