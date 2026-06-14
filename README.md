@@ -44,9 +44,7 @@ LogSLM learns normal log behavior from normal sequences only. During prediction,
 
 The anomaly score is computed as:
 
-```math
-score = \alpha \cdot MLM\_loss + \beta \cdot center\_distance
-```
+$`\mathrm{score} = \alpha \cdot \mathcal{L}_{\mathrm{MLM}} + \beta \cdot d_{\mathrm{center}}`$
 
 A sequence is classified as anomalous if its score is higher than the calibrated threshold.
 
