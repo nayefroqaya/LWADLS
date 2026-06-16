@@ -92,7 +92,7 @@ class Utilities:
 
         if dataset in ['HDFS', 'BGL', 'SP_150MB_ratio', 'TH_1G', 'S_BGL']:
 
-            # Shuffle and split
+            #split after Sorting based on timestamp
             shuffled_ids = np.random.permutation(unique_ids)
             train_size, val_size = int(0.6 * total_ids), int(0.1 * total_ids)
             train_ids, val_ids, test_ids = shuffled_ids[:train_size], shuffled_ids[
@@ -100,7 +100,7 @@ class Utilities:
         else:
             raise ValueError(f"[ERROR] Unsupported dataset type: {dataset}")
 
-        # Check for overlaps between splits
+        # Check for overlaps between splits----------Overlap must be 0
         set_train, set_val, set_test = set(train_ids), set(val_ids), set(test_ids)
         intersections = {"train_val": set_train.intersection(set_val), "train_test": set_train.intersection(set_test),
                          "val_test": set_val.intersection(set_test)}
@@ -166,66 +166,3 @@ class Utilities:
         print(' Normal seq Test : ' + str(len(df3)))
         print(' Anomaly seq Test : ' + str(len(df4)))
 
-    @staticmethod
-    def processing_data_portion(train_df, validate_df, test_df):
-        """Create labeled and unlabeled portions for training and mark test set."""
-
-        # Seq count  Train
-        unique_normal_train = train_df[train_df['Label'] == 'Normal']['Node_block_id'].unique()
-        unique_anomaly_train = train_df[train_df['Label'] == 'Anomaly']['Node_block_id'].unique()
-        # print(train_df['Label'].unique())
-        # exit()
-        # Logs count Train 
-        train_normal_logs = (train_df['Label'] == 'Normal').sum()
-        train_anomaly_logs = (train_df['Label'] == 'Anomaly').sum()
-
-        # Seq count  Test
-        unique_normal_test = test_df[test_df['Label'] == 'Normal']['Node_block_id'].unique()
-        unique_anomaly_test = test_df[test_df['Label'] == 'Anomaly']['Node_block_id'].unique()
-        # Logs count Test 
-        test_normal_logs = (test_df['Label'] == 'Normal').sum()
-        test_anomaly_logs = (test_df['Label'] == 'Anomaly').sum()
-
-        print(
-            GREEN + f"[INFO] Training data : Total Seq  unique normal Node_block_ids: {len(unique_normal_train)}" + RESET)
-        print(
-            GREEN + f"[INFO] Training data : Total Seq  unique anomaly Node_block_ids: {len(unique_anomaly_train)}" + RESET)
-        print(GREEN + f"[INFO] Training data : Total  normal logs: {train_normal_logs}" + RESET)
-        print(GREEN + f"[INFO] Training data :Total  anomaly  logs: {train_anomaly_logs}" + RESET)
-
-        print(
-            GREEN + f"[INFO] Testing data : Total Seq  unique normal Node_block_ids: {len(unique_normal_test)}" + RESET)
-        print(
-            GREEN + f"[INFO] Testing data : Total Seq  unique anomaly Node_block_ids: {len(unique_anomaly_test)}" + RESET)
-        print(GREEN + f"[INFO] Testing data : Total  normal logs: {test_normal_logs}" + RESET)
-        print(GREEN + f"[INFO] Testing data : Total  anomaly  logs: {test_anomaly_logs}" + RESET)
-
-        # Select 50% of normal blocks for labeled training
-        selected_normal_50 = np.random.choice(unique_normal_train, size=len(unique_normal_train) // 2, replace=False)
-        df_train_normal_50 = train_df[train_df['Node_block_id'].isin(selected_normal_50)].copy()
-        df_train_normal_50['Temp_label'] = 0
-
-        # Remaining normal + all anomaly blocks are unlabeled
-        remaining_normal = set(unique_normal_train) - set(selected_normal_50)
-        df_train_unlabeled = train_df[train_df['Node_block_id'].isin(remaining_normal) | train_df['Node_block_id'].isin(
-            unique_anomaly_train)].copy()
-        df_train_unlabeled['Temp_label'] = 999
-
-        # Mark test set with Temp_label = 888
-        test_df['Temp_label'] = 888
-        validate_df['Temp_label'] = 777
-
-        # Combine all datasets
-        final_dataset = pd.concat([df_train_normal_50, df_train_unlabeled, validate_df, test_df], ignore_index=True)
-
-        print(
-            GREEN + f"[INFO] Labeled normal blocks: {df_train_normal_50['Node_block_id'].nunique()} (Temp_label=0)" + RESET)
-        print(
-            GREEN + f"[INFO] Unlabeled blocks (remaining normal + anomaly): {df_train_unlabeled['Node_block_id'].nunique()} (Temp_label=999)" + RESET)
-        print(GREEN + f"[INFO] Test blocks: {test_df['Node_block_id'].nunique()} (Temp_label=888)" + RESET)
-        print(GREEN + f"[INFO] Test blocks: {validate_df['Node_block_id'].nunique()} (Temp_label=777)" + RESET)
-
-        print(GREEN + f"[INFO] Final combined dataset size: {len(final_dataset)} rows" + RESET)
-
-        final_dataset.info()
-        return final_dataset

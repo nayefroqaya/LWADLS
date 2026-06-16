@@ -87,8 +87,12 @@ We used two open-source log datasets (more will be added in the future):
 ## ⚙️ Environment
 All libraries are specified with their versions in the requirements file (e.g., Main path/requirements.txt).
 
+```bash
+pip install -r requirements.txt
+```
+
 ---
-## 🛠️ Preparation
+## 🛠️ Preparation - Parsing step:
 Steps to run LogSLM:
 
 1. Install all required libraries from the requirements file (e.g., Main path/requirements.txt).
@@ -97,33 +101,18 @@ Steps to run LogSLM:
 4. For Drain parser details, see [IBM Drain](https://github.com/logpai/logparser/tree/main/logparser/Drain).
 5. The parsing code is available in the `drain_parser` folder.
 6. Specify the dataset name in `demo.py` (e.g., BGL). The code is available for all datasets. Uncomment the lines of the dataset you need to use
+7. For data parsing, all libraries are specified with their versions in the requirements file (e.g., drain_parser/requirements.txt). 
+8. To start the parsing process, run (drain_parser/demo.py). 
+9. The parsing output will be generated and saved in the datasets' directory.
+10. The output of Drain is CSV file. 
 
 ---
+## 🛠️ Preparation - Data Splitting  step:
 
-## 📌 Data Parsing
-1. For data parsing, all libraries are specified with their versions in the requirements file (e.g., drain_parser/requirements.txt). 
-2. To start the parsing process, run (drain_parser/demo.py). 
-3. The parsing output will be generated and saved in the datasets' directory.
+1. After the parsing, we run load_datalog.py
+2. In main.py: uncomment Section A and run the file. The results will be  60%, 10%, 30% splits as PKL files.
+3. In main.py: comment the Section A and run the file. This is start point of the pipeline.
 
----
-
-
-
-```bash
-pip install -r requirements.txt
-```
-
-Main dependencies:
-
-```text
-torch
-transformers
-scikit-learn
-pandas
-numpy
-PyYAML
-tqdm
-```
 
 ## Data Format
 
