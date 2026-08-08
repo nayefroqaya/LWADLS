@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 from transformers import AutoTokenizer
@@ -22,7 +23,6 @@ from .scoring import (
     calibrate_threshold,
     evaluate_scores,
     save_classification_report_files,
-    run_posthoc_grid_search,
 )
 
 
@@ -115,38 +115,146 @@ def load_saved_model_tokenizer_center(
 
     return model, tokenizer, center
 
-def apply_fixed_posthoc_parameters(score_df: pd.DataFrame, posthoc_best: dict) -> pd.DataFrame:
+def calibrate_conformal_normal_only(normal_scores, alpha: float = 0.01) -> dict:
     """
-    Apply already-selected post-hoc parameters to a score dataframe.
+    Calibrate an anomaly threshold using NORMAL validation scores only.
+
+    This is a split-conformal style upper-tail calibration for anomaly scores,
+    where larger scores indicate more anomalous samples.
+
+    Parameters
+    ----------
+    normal_scores:
+        Scores from normal validation instances only.
+    alpha:
+        Global target false-alarm / miscoverage level. Use the SAME value for
+        every dataset (default: 0.01). Do not tune alpha on test labels.
+
+    Returns
+    -------
+    dict with threshold and calibration metadata.
+    """
+    scores = np.asarray(normal_scores, dtype=np.float64)
+
+    if scores.size == 0:
+        raise ValueError("Normal-only post-hoc calibration received no validation scores.")
+
+    if not 0.0 < float(alpha) < 1.0:
+        raise ValueError(f"conformal_alpha must be in (0, 1), got {alpha}")
+
+    scores = np.sort(scores)
+    n = int(scores.size)
+
+    # Finite-sample conformal rank for the (1-alpha) upper quantile.
+    # k is 1-based and is capped at n when the calibration set is small.
+    k = int(np.ceil((n + 1) * (1.0 - float(alpha))))
+    k = min(max(k, 1), n)
+
+    threshold = float(scores[k - 1])
+    quantile_level = float(k / n)
+
+    print("=" * 80)
+    print("[NORMAL-ONLY POST-HOC CALIBRATION]")
+    print("No anomalous validation labels are used.")
+    print(f"normal validation samples : {n}")
+    print(f"conformal alpha           : {float(alpha):.6f}")
+    print(f"conformal rank k          : {k}/{n}")
+    print(f"empirical quantile level  : {quantile_level:.6f}")
+    print(f"post-hoc threshold        : {threshold:.12f}")
+    print("=" * 80)
+
+    return {
+        "threshold": threshold,
+        "conformal_alpha": float(alpha),
+        "quantile_level": quantile_level,
+        "num_normal_validation": n,
+    }
+
+
+def build_normal_only_posthoc_params(cfg, val_normal_scores: pd.DataFrame):
+    """
+    Build post-hoc parameters using ONLY normal validation instances.
+
+    alpha_mlm and beta_center remain fixed from the configuration. The only
+    calibrated decision parameter is the threshold. This avoids using anomaly
+    labels for model/score/threshold selection.
+    """
+    post_cfg = cfg.get("posthoc_calibration", {})
+
+    if not post_cfg.get("enabled", False):
+        print("[Post-hoc calibration] disabled")
+        return None
+
+    required_cols = ["score", "mlm_loss", "center_distance"]
+    missing = [c for c in required_cols if c not in val_normal_scores.columns]
+    if missing:
+        raise ValueError(
+            f"Normal-only post-hoc calibration requires columns {required_cols}. Missing: {missing}"
+        )
+
+    # Safety check: calibration must contain NORMAL validation instances only.
+    if "label" in val_normal_scores.columns:
+        labels = set(val_normal_scores["label"].astype(int).unique().tolist())
+        if labels - {0}:
+            raise ValueError(
+                "Normal-only post-hoc calibration received anomalous validation samples. "
+                "Expected label=0 only."
+            )
+
+    alpha_mlm = float(cfg["hybrid_scoring"]["alpha_mlm"])
+    beta_center = float(cfg["hybrid_scoring"]["beta_center"])
+
+    # One global value for all datasets. If omitted from YAML, 0.01 is used.
+    conformal_alpha = float(post_cfg.get("conformal_alpha", 0.01))
+
+    calibration = calibrate_conformal_normal_only(
+        val_normal_scores["score"].to_numpy(),
+        alpha=conformal_alpha,
+    )
+
+    params = {
+        "method": "normal_only_conformal",
+        "alpha_mlm": alpha_mlm,
+        "beta_center": beta_center,
+        **calibration,
+    }
+
+    print("[Post-hoc parameters fixed BEFORE test evaluation]")
+    print(params)
+    return params
+
+
+def apply_fixed_posthoc_parameters(score_df: pd.DataFrame, posthoc_params: dict) -> pd.DataFrame:
+    """
+    Apply already-fixed post-hoc parameters to a score dataframe.
 
     IMPORTANT:
-    This function does NOT search or optimize anything. It simply applies the
-    alpha/beta/threshold values that were selected earlier on the validation set.
-    Therefore it is safe to use on the held-out test set.
+    This function performs NO search, optimization, or calibration. It simply
+    applies parameters already fixed from NORMAL validation data, so it is safe
+    to apply to the held-out test set.
     """
-    if posthoc_best is None:
+    if posthoc_params is None:
         return score_df.copy()
 
-    alpha_mlm = float(posthoc_best["alpha_mlm"])
-    beta_center = float(posthoc_best["beta_center"])
-    threshold = float(posthoc_best["threshold"])
+    alpha_mlm = float(posthoc_params["alpha_mlm"])
+    beta_center = float(posthoc_params["beta_center"])
+    threshold = float(posthoc_params["threshold"])
 
     calibrated_df = score_df.copy()
-
-    # Preserve the original score produced with hybrid_scoring values from config.
     calibrated_df["base_score"] = calibrated_df["score"]
 
-    # Apply the FIXED parameters selected on validation data.
     calibrated_df["score"] = (
         alpha_mlm * calibrated_df["mlm_loss"].to_numpy()
         + beta_center * calibrated_df["center_distance"].to_numpy()
     )
     calibrated_df["prediction"] = (calibrated_df["score"] > threshold).astype(int)
 
+    calibrated_df["posthoc_method"] = posthoc_params.get("method", "normal_only_conformal")
     calibrated_df["posthoc_alpha_mlm"] = alpha_mlm
     calibrated_df["posthoc_beta_center"] = beta_center
-    calibrated_df["posthoc_percentile"] = float(posthoc_best["percentile"])
     calibrated_df["posthoc_threshold"] = threshold
+    calibrated_df["posthoc_conformal_alpha"] = posthoc_params.get("conformal_alpha")
+    calibrated_df["posthoc_quantile_level"] = posthoc_params.get("quantile_level")
 
     return calibrated_df
 
@@ -284,20 +392,16 @@ def predict_in_domain(cfg, config_path: str):
     """
     In-domain prediction stage only.
 
-    Loads:
-        model.pt
-        normal_center.pt
-        tokenizer/
+    Calibration protocol:
+        1) load NORMAL validation instances only
+        2) compute base threshold from normal validation scores
+        3) compute normal-only conformal post-hoc threshold from the SAME
+           normal validation scores
+        4) freeze all parameters
+        5) only then load and evaluate the held-out test set
 
-    Then:
-        1) uses NORMAL-ONLY validation data for the original threshold calibration
-        2) uses FULL validation data (normal + anomaly) for post-hoc parameter search
-        3) freezes the selected post-hoc parameters
-        4) applies the frozen parameters to the test set for final evaluation
-
-    It does NOT retrain.
+    Test labels are used only in evaluate_scores() for final reporting.
     """
-
     out_dir = ensure_output_dir(cfg)
 
     set_seed(cfg["experiment"].get("seed", 42))
@@ -319,11 +423,18 @@ def predict_in_domain(cfg, config_path: str):
         center_filename="normal_center.pt",
     )
 
-    # ------------------------------------------------------------------
-    # VALIDATION VIEW 1: NORMAL ONLY
-    # Used only for normality-based threshold calibration.
-    # This preserves the original behavior of the method.
-    # ------------------------------------------------------------------
+    # ==============================================================
+    # NORMAL VALIDATION ONLY
+    # ==============================================================
+    # IMPORTANT: normal_only=True is explicit. No anomalous validation
+    # instance is allowed into either base or post-hoc calibration.
+    #
+    # LEGACY FULL-VALIDATION CALIBRATION -- DISABLED / DO NOT USE:
+    # val_full_df = load_sequences_for_dataset(
+    #     cfg, dataset=dataset_name, split=mode_cfg["val_split"], normal_only=False
+    # )
+    # The line above is intentionally commented because anomalous validation
+    # samples must NOT be used for post-hoc calibration.
     val_normal_df = load_sequences_for_dataset(
         cfg,
         dataset=dataset_name,
@@ -331,31 +442,7 @@ def predict_in_domain(cfg, config_path: str):
         normal_only=True,
     )
 
-    # ------------------------------------------------------------------
-    # VALIDATION VIEW 2: FULL VALIDATION SET (NORMAL + ANOMALY)
-    # Used only for supervised post-hoc parameter selection.
-    # It comes from the SAME validation split, but anomalies are not removed.
-    # ------------------------------------------------------------------
-    val_full_df = load_sequences_for_dataset(
-        cfg,
-        dataset=dataset_name,
-        split=mode_cfg["val_split"],
-        normal_only=False,
-    )
-
-    # Held-out test set: used only after all calibration parameters are fixed.
-    test_df = load_sequences_for_dataset(
-        cfg,
-        dataset=dataset_name,
-        split=mode_cfg["test_split"],
-        normal_only=mode_cfg.get("test_normal_only", False),
-    )
-
-    print(
-        f"[Sequences] val_normal={len(val_normal_df)} "
-        f"val_full={len(val_full_df)} "
-        f"test={len(test_df)}"
-    )
+    print(f"[Sequences] val_normal={len(val_normal_df)}")
 
     val_normal_loader = make_loader(
         cfg,
@@ -364,23 +451,6 @@ def predict_in_domain(cfg, config_path: str):
         shuffle=False,
     )
 
-    val_full_loader = make_loader(
-        cfg,
-        val_full_df,
-        tokenizer,
-        shuffle=False,
-    )
-
-    test_loader = make_loader(
-        cfg,
-        test_df,
-        tokenizer,
-        shuffle=False,
-    )
-
-    # ------------------------------------------------------------------
-    # ORIGINAL THRESHOLD CALIBRATION: NORMAL VALIDATION ONLY
-    # ------------------------------------------------------------------
     val_normal_scores = score_loader(
         model,
         val_normal_loader,
@@ -391,68 +461,45 @@ def predict_in_domain(cfg, config_path: str):
         desc="Scoring in-domain NORMAL validation data",
     )
 
-    threshold = calibrate_threshold(
+    # Save ONLY normal validation scores for reproducible posthoc_only runs.
+    validation_normal_file = out_dir / "validation_normal_scores.csv"
+    val_normal_scores.to_csv(validation_normal_file, index=False)
+    print(f"[Normal validation scores saved] {validation_normal_file}")
+
+    # Base threshold: original normal-only rule from YAML.
+    base_threshold = calibrate_threshold(
         val_normal_scores["score"],
         method=cfg["threshold"]["method"],
         percentile=cfg["threshold"].get("percentile", 95),
         fixed_threshold=cfg["prediction_stage"].get("anomaly_threshold", 0.5),
     )
 
-    # ------------------------------------------------------------------
-    # POST-HOC CALIBRATION: FULL VALIDATION SET
-    # score_loader stores mlm_loss, center_distance, and ground-truth label.
-    # run_posthoc_grid_search uses these VALIDATION labels to select the best
-    # alpha/beta/percentile/threshold.
-    # ------------------------------------------------------------------
-    val_calibration_scores = score_loader(
-        model,
-        val_full_loader,
-        center,
-        device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
-        desc="Scoring FULL validation data for post-hoc calibration",
+    # ==============================================================
+    # NORMAL-ONLY POST-HOC CALIBRATION
+    # ==============================================================
+    # Calibration below uses ONLY normal validation scores.
+
+    posthoc_params = build_normal_only_posthoc_params(cfg, val_normal_scores)
+
+    # ==============================================================
+    # HELD-OUT TEST -- LOADED ONLY AFTER CALIBRATION IS FIXED
+    # ==============================================================
+    test_df = load_sequences_for_dataset(
+        cfg,
+        dataset=dataset_name,
+        split=mode_cfg["test_split"],
+        normal_only=mode_cfg.get("test_normal_only", False),
     )
 
-    # Save validation calibration scores so stage=posthoc_only can also use
-    # validation data instead of test data.
-    validation_calibration_file = out_dir / "validation_calibration_scores.csv"
-    val_calibration_scores.to_csv(validation_calibration_file, index=False)
-    print(f"[Validation calibration scores saved] {validation_calibration_file}")
+    print(f"[Sequences] held-out test={len(test_df)}")
 
-    # Macro-F1/label-based post-hoc selection requires both classes.
-    if val_calibration_scores["label"].nunique() < 2:
-        raise ValueError(
-            "Full validation data must contain both normal and anomaly samples "
-            "for label-based post-hoc calibration."
-        )
-
-    # ------------------------------------------------------------------
-    # PROBLEM IN THE OLD CODE -- KEPT AS COMMENT FOR AUDITABILITY:
-    # The old implementation tuned post-hoc parameters on TEST labels:
-    #
-    # posthoc_best, _ = run_posthoc_grid_search(
-    #     score_df=test_scores,
-    #     cfg=cfg,
-    #     output_dir=out_dir,
-    #     normal_label=0,
-    # )
-    #
-    # This caused test-label information leakage.
-    # ------------------------------------------------------------------
-
-    # NEW: select post-hoc parameters exclusively on FULL VALIDATION data.
-    posthoc_best, _ = run_posthoc_grid_search(
-        score_df=val_calibration_scores,
-        cfg=cfg,
-        output_dir=out_dir,
-        normal_label=0,
+    test_loader = make_loader(
+        cfg,
+        test_df,
+        tokenizer,
+        shuffle=False,
     )
 
-    # ------------------------------------------------------------------
-    # TEST: NO PARAMETER SEARCH HERE
-    # First keep the original/base evaluation for comparison.
-    # ------------------------------------------------------------------
     test_scores = score_loader(
         model,
         test_loader,
@@ -463,35 +510,31 @@ def predict_in_domain(cfg, config_path: str):
         desc="Predicting in-domain held-out TEST data",
     )
 
+    # Base test result: original threshold calibrated from normal validation.
     metrics = evaluate_scores(
         test_scores,
-        threshold,
+        base_threshold,
         normal_label=0,
     )
 
-    save_classification_report_files(
-        metrics,
-        out_dir,
-        prefix="test",
-    )
+    save_classification_report_files(metrics, out_dir, prefix="test")
 
     print("[Saving base test predictions]")
-    test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
+    test_scores["prediction"] = (test_scores["score"] > base_threshold).astype(int)
     test_scores.to_csv(
         out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
         index=False,
     )
     print("[Base test predictions saved]")
 
-    # Apply the FROZEN validation-selected post-hoc parameters to test.
-    # Test labels are used only by evaluate_scores AFTER parameter selection.
+    # Final post-hoc test result: threshold was fixed using NORMAL validation only.
     posthoc_test_metrics = None
-    if posthoc_best is not None:
-        posthoc_test_scores = apply_fixed_posthoc_parameters(test_scores, posthoc_best)
+    if posthoc_params is not None:
+        posthoc_test_scores = apply_fixed_posthoc_parameters(test_scores, posthoc_params)
 
         posthoc_test_metrics = evaluate_scores(
             posthoc_test_scores,
-            float(posthoc_best["threshold"]),
+            float(posthoc_params["threshold"]),
             normal_label=0,
         )
 
@@ -511,9 +554,7 @@ def predict_in_domain(cfg, config_path: str):
             "mode": "in_domain",
             "dataset": dataset_name,
             "metrics": metrics,
-            # Keep the old key for backward compatibility.
-            "posthoc_best": posthoc_best,
-            "posthoc_best_validation": posthoc_best,
+            "posthoc_params": posthoc_params,
             "posthoc_test_metrics": posthoc_test_metrics,
         },
         out_dir / cfg["outputs"].get("results_file", "results.json"),
@@ -524,14 +565,13 @@ def predict_in_domain(cfg, config_path: str):
     print("[Base test Classification Report]")
     print(metrics["classification_report_text"])
 
-    if posthoc_best is not None:
-        print("[Post-hoc best selected on VALIDATION]")
-        print(posthoc_best)
+    if posthoc_params is not None:
+        print("[Post-hoc parameters selected from NORMAL VALIDATION ONLY]")
+        print(posthoc_params)
         print("[Final post-hoc TEST Classification Report]")
         print(posthoc_test_metrics["classification_report_text"])
 
     print("=" * 80)
-
 
 # ======================================================
 # MODE 1: IN-DOMAIN FULL PIPELINE
@@ -719,20 +759,15 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     """
     Few-shot target adaptation prediction stage only.
 
-    Loads:
-        model.pt
-        target_normal_center.pt
-        tokenizer/
+    Cross-dataset calibration protocol:
+        1) use TARGET NORMAL validation instances only
+        2) compute target-specific thresholds from those normal scores
+        3) freeze all parameters
+        4) only then load/evaluate the held-out TARGET test set
 
-    Then:
-        1) uses NORMAL-ONLY target validation for the original threshold
-        2) uses FULL target validation (normal + anomaly) for post-hoc search
-        3) freezes the selected post-hoc parameters
-        4) applies them once to the held-out target test set
-
-    It does NOT retrain.
+    No anomalous target validation label and no target test label is used for
+    calibration or parameter selection.
     """
-
     out_dir = ensure_output_dir(cfg)
 
     set_seed(cfg["experiment"].get("seed", 42))
@@ -754,7 +789,15 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         center_filename="target_normal_center.pt",
     )
 
-    # Validation view 1: normal only, for original normality threshold.
+    # ==============================================================
+    # TARGET NORMAL VALIDATION ONLY
+    # ==============================================================
+    # LEGACY FULL-TARGET-VALIDATION CALIBRATION -- DISABLED / DO NOT USE:
+    # target_val_full_df = load_sequences_for_dataset(
+    #     cfg, dataset=target_dataset, split=mode_cfg["target_val_split"], normal_only=False
+    # )
+    # The line above is intentionally commented because anomalous target
+    # validation samples must NOT be used for post-hoc calibration.
     target_val_normal_df = load_sequences_for_dataset(
         cfg,
         dataset=target_dataset,
@@ -762,26 +805,7 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         normal_only=True,
     )
 
-    # Validation view 2: full target validation, for post-hoc parameter search.
-    target_val_full_df = load_sequences_for_dataset(
-        cfg,
-        dataset=target_dataset,
-        split=mode_cfg["target_val_split"],
-        normal_only=False,
-    )
-
-    target_test_df = load_sequences_for_dataset(
-        cfg,
-        dataset=target_dataset,
-        split=mode_cfg["target_test_split"],
-        normal_only=mode_cfg.get("target_test_normal_only", False),
-    )
-
-    print(
-        f"[Sequences] target_val_normal={len(target_val_normal_df)} "
-        f"target_val_full={len(target_val_full_df)} "
-        f"target_test={len(target_test_df)}"
-    )
+    print(f"[Sequences] target_val_normal={len(target_val_normal_df)}")
 
     target_val_normal_loader = make_loader(
         cfg,
@@ -790,21 +814,6 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         shuffle=False,
     )
 
-    target_val_full_loader = make_loader(
-        cfg,
-        target_val_full_df,
-        tokenizer,
-        shuffle=False,
-    )
-
-    target_test_loader = make_loader(
-        cfg,
-        target_test_df,
-        tokenizer,
-        shuffle=False,
-    )
-
-    # Original normal-only threshold calibration.
     val_normal_scores = score_loader(
         model,
         target_val_normal_loader,
@@ -815,57 +824,39 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         desc="Scoring target NORMAL validation data",
     )
 
-    threshold = calibrate_threshold(
+    validation_normal_file = out_dir / "validation_normal_scores.csv"
+    val_normal_scores.to_csv(validation_normal_file, index=False)
+    print(f"[Normal target validation scores saved] {validation_normal_file}")
+
+    base_threshold = calibrate_threshold(
         val_normal_scores["score"],
         method=cfg["threshold"]["method"],
         percentile=cfg["threshold"].get("percentile", 95),
         fixed_threshold=cfg["prediction_stage"].get("anomaly_threshold", 0.5),
     )
 
-    # Full validation scores used for post-hoc parameter selection.
-    val_calibration_scores = score_loader(
-        model,
-        target_val_full_loader,
-        target_center,
-        device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
-        desc="Scoring FULL target validation data for post-hoc calibration",
+    # Calibration below uses ONLY normal target-validation scores.
+    posthoc_params = build_normal_only_posthoc_params(cfg, val_normal_scores)
+
+    # ==============================================================
+    # HELD-OUT TARGET TEST -- ONLY AFTER CALIBRATION IS FIXED
+    # ==============================================================
+    target_test_df = load_sequences_for_dataset(
+        cfg,
+        dataset=target_dataset,
+        split=mode_cfg["target_test_split"],
+        normal_only=mode_cfg.get("target_test_normal_only", False),
     )
 
-    validation_calibration_file = out_dir / "validation_calibration_scores.csv"
-    val_calibration_scores.to_csv(validation_calibration_file, index=False)
-    print(f"[Validation calibration scores saved] {validation_calibration_file}")
+    print(f"[Sequences] held-out target_test={len(target_test_df)}")
 
-    # Macro-F1/label-based post-hoc selection requires both classes.
-    if val_calibration_scores["label"].nunique() < 2:
-        raise ValueError(
-            "Full validation data must contain both normal and anomaly samples "
-            "for label-based post-hoc calibration."
-        )
-
-    # ------------------------------------------------------------------
-    # PROBLEM IN THE OLD CODE -- KEPT AS COMMENT FOR AUDITABILITY:
-    #
-    # posthoc_best, _ = run_posthoc_grid_search(
-    #     score_df=test_scores,
-    #     cfg=cfg,
-    #     output_dir=out_dir,
-    #     normal_label=0,
-    # )
-    #
-    # This selected hyperparameters using TEST labels.
-    # ------------------------------------------------------------------
-
-    # NEW: tune only on full target validation data.
-    posthoc_best, _ = run_posthoc_grid_search(
-        score_df=val_calibration_scores,
-        cfg=cfg,
-        output_dir=out_dir,
-        normal_label=0,
+    target_test_loader = make_loader(
+        cfg,
+        target_test_df,
+        tokenizer,
+        shuffle=False,
     )
 
-    # Held-out test set: no search/optimization.
     test_scores = score_loader(
         model,
         target_test_loader,
@@ -878,18 +869,14 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
 
     metrics = evaluate_scores(
         test_scores,
-        threshold,
+        base_threshold,
         normal_label=0,
     )
 
-    save_classification_report_files(
-        metrics,
-        out_dir,
-        prefix="test",
-    )
+    save_classification_report_files(metrics, out_dir, prefix="test")
 
     print("[Saving base test predictions]")
-    test_scores["prediction"] = (test_scores["score"] > threshold).astype(int)
+    test_scores["prediction"] = (test_scores["score"] > base_threshold).astype(int)
     test_scores.to_csv(
         out_dir / cfg["outputs"].get("predictions_file", "predictions.csv"),
         index=False,
@@ -897,12 +884,12 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     print("[Base test predictions saved]")
 
     posthoc_test_metrics = None
-    if posthoc_best is not None:
-        posthoc_test_scores = apply_fixed_posthoc_parameters(test_scores, posthoc_best)
+    if posthoc_params is not None:
+        posthoc_test_scores = apply_fixed_posthoc_parameters(test_scores, posthoc_params)
 
         posthoc_test_metrics = evaluate_scores(
             posthoc_test_scores,
-            float(posthoc_best["threshold"]),
+            float(posthoc_params["threshold"]),
             normal_label=0,
         )
 
@@ -921,9 +908,7 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
             "stage": "predict",
             "mode": "fewshot_target_adaptation",
             "metrics": metrics,
-            # Keep the old key for backward compatibility.
-            "posthoc_best": posthoc_best,
-            "posthoc_best_validation": posthoc_best,
+            "posthoc_params": posthoc_params,
             "posthoc_test_metrics": posthoc_test_metrics,
             "target_dataset": target_dataset,
         },
@@ -935,14 +920,13 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     print("[Base test Classification Report]")
     print(metrics["classification_report_text"])
 
-    if posthoc_best is not None:
-        print("[Post-hoc best selected on VALIDATION]")
-        print(posthoc_best)
+    if posthoc_params is not None:
+        print("[Post-hoc parameters selected from TARGET NORMAL VALIDATION ONLY]")
+        print(posthoc_params)
         print("[Final post-hoc TEST Classification Report]")
         print(posthoc_test_metrics["classification_report_text"])
 
     print("=" * 80)
-
 
 # ======================================================
 # MODE 2: FEW-SHOT TARGET ADAPTATION FULL PIPELINE
@@ -965,71 +949,50 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
 
 def run_posthoc_only(cfg):
     """
-    Post-hoc calibration only.
+    Re-run post-hoc calibration without re-running the model.
 
-    IMPORTANT:
-    The grid search is performed on validation_calibration_scores.csv, which is
-    created by the predict stage from the FULL validation split.
-
-    predictions.csv contains held-out test scores and is NEVER used for
-    post-hoc parameter search. After parameters are selected on validation, they
-    are applied once to predictions.csv for final test evaluation.
+    Calibration uses validation_normal_scores.csv, which contains NORMAL
+    validation scores only. predictions.csv is held-out test data and is loaded
+    only after the normal-only threshold is fixed.
     """
-
     out_dir = ensure_output_dir(cfg)
 
-    validation_calibration_file = out_dir / "validation_calibration_scores.csv"
+    validation_normal_file = out_dir / "validation_normal_scores.csv"
     predictions_file = out_dir / cfg["outputs"].get(
         "predictions_file",
         "predictions.csv",
     )
 
-    if not validation_calibration_file.exists():
+    if not validation_normal_file.exists():
         raise FileNotFoundError(
-            f"Validation calibration file not found: {validation_calibration_file}\n"
-            "Run stage: predict first with the revised code so full validation scores are saved."
+            f"Normal validation score file not found: {validation_normal_file}\n"
+            "Run stage: predict first with the revised normal-only calibration code."
         )
 
     print("=" * 80)
-    print("[Stage] POSTHOC ONLY")
-    print(f"[Loading VALIDATION calibration scores] {validation_calibration_file}")
+    print("[Stage] POSTHOC ONLY -- NORMAL VALIDATION ONLY")
+    print(f"[Loading NORMAL validation scores] {validation_normal_file}")
     print("=" * 80)
 
-    validation_score_df = pd.read_csv(validation_calibration_file)
+    val_normal_scores = pd.read_csv(validation_normal_file)
 
-    # ------------------------------------------------------------------
-    # PROBLEM IN THE OLD CODE -- KEPT AS COMMENT FOR AUDITABILITY:
-    # The old code loaded predictions.csv (TEST data) and optimized on it:
-    #
-    # score_df = pd.read_csv(predictions_file)
-    # posthoc_best, _ = run_posthoc_grid_search(
-    #     score_df=score_df,
-    #     cfg=cfg,
-    #     output_dir=out_dir,
-    #     normal_label=0,
-    # )
-    # ------------------------------------------------------------------
-
-    # NEW: optimize only on the FULL VALIDATION scores.
-    posthoc_best, _ = run_posthoc_grid_search(
-        score_df=validation_score_df,
-        cfg=cfg,
-        output_dir=out_dir,
-        normal_label=0,
-    )
+    # Safety check happens inside build_normal_only_posthoc_params().
+    posthoc_params = build_normal_only_posthoc_params(cfg, val_normal_scores)
 
     posthoc_test_metrics = None
 
-    # If test predictions are available, apply the already-fixed parameters
-    # to test. No test label is used to choose alpha/beta/threshold.
-    if posthoc_best is not None and predictions_file.exists():
-        print(f"[Loading held-out TEST scores] {predictions_file}")
+    if posthoc_params is not None and predictions_file.exists():
+        print(f"[Loading held-out TEST scores AFTER calibration] {predictions_file}")
         test_score_df = pd.read_csv(predictions_file)
-        posthoc_test_scores = apply_fixed_posthoc_parameters(test_score_df, posthoc_best)
+
+        posthoc_test_scores = apply_fixed_posthoc_parameters(
+            test_score_df,
+            posthoc_params,
+        )
 
         posthoc_test_metrics = evaluate_scores(
             posthoc_test_scores,
-            float(posthoc_best["threshold"]),
+            float(posthoc_params["threshold"]),
             normal_label=0,
         )
 
@@ -1047,9 +1010,7 @@ def run_posthoc_only(cfg):
         {
             "stage": "posthoc_only",
             "mode": cfg["experiment"].get("mode"),
-            # Keep the old key for backward compatibility.
-            "posthoc_best": posthoc_best,
-            "posthoc_best_validation": posthoc_best,
+            "posthoc_params": posthoc_params,
             "posthoc_test_metrics": posthoc_test_metrics,
         },
         out_dir / "posthoc_only_results.json",
@@ -1057,13 +1018,12 @@ def run_posthoc_only(cfg):
 
     print("=" * 80)
     print("[POSTHOC FINISHED]")
-    print("[Post-hoc best selected on VALIDATION]")
-    print(posthoc_best)
+    print("[Post-hoc parameters selected from NORMAL VALIDATION ONLY]")
+    print(posthoc_params)
     if posthoc_test_metrics is not None:
         print("[Final post-hoc TEST Classification Report]")
         print(posthoc_test_metrics["classification_report_text"])
     print("=" * 80)
-
 
 # ======================================================
 # TERMINAL ENTRY POINT
