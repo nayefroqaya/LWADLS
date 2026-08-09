@@ -26,6 +26,8 @@ from .scoring import (
     save_classification_report_files,
 )
 
+CALIBRATION_IMPLEMENTATION = "UNLABELED_GMM_V2"
+
 
 # ======================================================
 # COMMON HELPERS
@@ -558,6 +560,7 @@ def train_in_domain(cfg, config_path: str):
 # ======================================================
 
 def predict_in_domain(cfg, config_path: str):
+    print(f"[Calibration implementation] {CALIBRATION_IMPLEMENTATION}")
     """
     In-domain prediction stage only.
 
@@ -957,6 +960,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
 # ======================================================
 
 def predict_fewshot_target_adaptation(cfg, config_path: str):
+    print(f"[Calibration implementation] {CALIBRATION_IMPLEMENTATION}")
     """
     Few-shot target adaptation prediction stage only.
 
