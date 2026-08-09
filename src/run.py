@@ -561,6 +561,7 @@ def train_in_domain(cfg, config_path: str):
 
 def predict_in_domain(cfg, config_path: str):
     print(f"[Calibration implementation] {CALIBRATION_IMPLEMENTATION}")
+    print(f"[RUN.PY PATH] {Path(__file__).resolve()}")
     """
     In-domain prediction stage only.
 
