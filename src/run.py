@@ -1,6 +1,4 @@
 
-
-
 from __future__ import annotations
 
 import argparse
@@ -28,7 +26,7 @@ from .scoring import (
     save_classification_report_files,
 )
 
-
+print('Nayeffffffffffffffffffffffff-------------------------------------------------------**************xxxxxxxxxxxxx')
 # ======================================================
 # COMMON HELPERS
 # ======================================================
@@ -132,39 +130,16 @@ def load_saved_model_tokenizer_center(
 #   * The ordinary threshold rule from cfg["threshold"] is calibrated on the
 #     robust combined NORMAL-validation score.
 #
-# Default weights are deliberately fixed and dataset-independent. They can be
-# overridden by an optional cfg["robust_scoring"] section, but do not tune them
-# separately for each test dataset.
+# The combination weights are fixed globally and dataset-independent.
 # ======================================================
 
-ROBUST_SCORING_VERSION = "ROBUST_NORMALIZED_SCORE_V1"
+ROBUST_SCORING_VERSION = "ROBUST_NORMALIZED_SCORE_V1_CLEAN"
 
-
-def get_robust_scoring_config(cfg):
-    robust_cfg = cfg.get("robust_scoring", {})
-
-    mlm_weight = float(robust_cfg.get("mlm_weight", 0.5))
-    center_weight = float(robust_cfg.get("center_weight", 0.5))
-    positive_only = bool(robust_cfg.get("positive_only", True))
-    epsilon = float(robust_cfg.get("epsilon", 1e-12))
-
-    if mlm_weight < 0.0 or center_weight < 0.0:
-        raise ValueError("Robust scoring weights must be non-negative.")
-
-    total_weight = mlm_weight + center_weight
-    if total_weight <= 0.0:
-        raise ValueError("At least one robust scoring weight must be > 0.")
-
-    # Normalize the fixed weights so they always sum to one.
-    mlm_weight /= total_weight
-    center_weight /= total_weight
-
-    return {
-        "mlm_weight": mlm_weight,
-        "center_weight": center_weight,
-        "positive_only": positive_only,
-        "epsilon": epsilon,
-    }
+# Fixed globally for every dataset. Do not tune these values on test data.
+ROBUST_MLM_WEIGHT = 0.5
+ROBUST_CENTER_WEIGHT = 0.5
+ROBUST_POSITIVE_ONLY = True
+ROBUST_EPSILON = 1e-12
 
 
 def _fit_robust_location_scale(values, epsilon: float):
@@ -219,7 +194,7 @@ def _fit_robust_location_scale(values, epsilon: float):
     }
 
 
-def fit_robust_score_normalizer(cfg, val_normal_scores: pd.DataFrame) -> dict:
+def fit_robust_score_normalizer(val_normal_scores: pd.DataFrame) -> dict:
     """
     STEP 3 of prediction:
     Fit robust normalization parameters using NORMAL VALIDATION ONLY.
@@ -249,15 +224,14 @@ def fit_robust_score_normalizer(cfg, val_normal_scores: pd.DataFrame) -> dict:
                 "Calibration must use NORMAL validation samples only."
             )
 
-    robust_cfg = get_robust_scoring_config(cfg)
-    eps = robust_cfg["epsilon"]
+    eps = ROBUST_EPSILON
 
     params = {
         "method": "normal_validation_robust_component_normalization",
         "version": ROBUST_SCORING_VERSION,
-        "mlm_weight": robust_cfg["mlm_weight"],
-        "center_weight": robust_cfg["center_weight"],
-        "positive_only": robust_cfg["positive_only"],
+        "mlm_weight": ROBUST_MLM_WEIGHT,
+        "center_weight": ROBUST_CENTER_WEIGHT,
+        "positive_only": ROBUST_POSITIVE_ONLY,
         "epsilon": eps,
         "mlm_loss": _fit_robust_location_scale(
             val_normal_scores["mlm_loss"].to_numpy(),
@@ -310,10 +284,6 @@ def apply_robust_score_normalization(
         )
 
     out = score_df.copy()
-
-    # Keep score_loader's original hybrid score for diagnostics only.
-    if "score" in out.columns:
-        out["original_hybrid_score"] = out["score"]
 
     mlm_median = float(robust_params["mlm_loss"]["median"])
     mlm_scale = float(robust_params["mlm_loss"]["scale"])
@@ -403,14 +373,14 @@ def train_in_domain(cfg, config_path: str):
         cfg,
         dataset=dataset_name,
         split=mode_cfg["train_split"],
-        normal_only=mode_cfg.get("train_normal_only", True),
+        normal_only=True,
     )
 
     val_df = load_sequences_for_dataset(
         cfg,
         dataset=dataset_name,
         split=mode_cfg["val_split"],
-        normal_only=mode_cfg.get("val_normal_only", True),
+        normal_only=True,
     )
 
     print(
@@ -495,7 +465,7 @@ def train_in_domain(cfg, config_path: str):
 # ======================================================
 
 
-def predict_in_domain(cfg, config_path: str):
+def predict_in_domain(cfg):
     """
     In-domain prediction with robust component normalization.
 
@@ -511,7 +481,6 @@ def predict_in_domain(cfg, config_path: str):
       STEP 9: Apply frozen robust scoring to test.
       STEP 10: Use test labels only for final evaluation.
 
-    There is NO post-hoc grid search and NO full-validation label usage.
     """
     out_dir = ensure_output_dir(cfg)
 
@@ -562,31 +531,23 @@ def predict_in_domain(cfg, config_path: str):
     # STEP 3 - SCORE NORMAL VALIDATION COMPONENTS
     # ==============================================================
     print("[STEP 3/10] Score NORMAL validation: MLM loss + center distance")
-    # score_loader's raw 'score' is not used as the new final score. We retain
-    # it only for diagnostics/reference. The two raw components are what matter.
+    # score_loader provides the two raw components needed below.
+    # Its temporary combined score is overwritten by robust normalization.
     val_normal_raw_scores = score_loader(
         model,
         val_normal_loader,
         center,
         device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
+        alpha_mlm=ROBUST_MLM_WEIGHT,
+        beta_center=ROBUST_CENTER_WEIGHT,
         desc="Scoring NORMAL validation components",
-    )
-
-    # Optional reference: old/original base threshold, calibrated normally.
-    original_base_threshold = calibrate_threshold(
-        val_normal_raw_scores["score"],
-        method=cfg["threshold"]["method"],
-        percentile=cfg["threshold"].get("percentile", 95),
-        fixed_threshold=cfg["prediction_stage"].get("anomaly_threshold", 0.5),
     )
 
     # ==============================================================
     # STEP 4 - FIT ROBUST NORMALIZATION ON NORMAL VALIDATION ONLY
     # ==============================================================
     print("[STEP 4/10] Fit robust median/MAD normalization on NORMAL validation")
-    robust_params = fit_robust_score_normalizer(cfg, val_normal_raw_scores)
+    robust_params = fit_robust_score_normalizer(val_normal_raw_scores)
 
     # Apply fitted normalizer back to the normal validation set.
     robust_val_normal_scores = apply_robust_score_normalization(
@@ -654,29 +615,9 @@ def predict_in_domain(cfg, config_path: str):
         test_loader,
         center,
         device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
+        alpha_mlm=ROBUST_MLM_WEIGHT,
+        beta_center=ROBUST_CENTER_WEIGHT,
         desc="Scoring held-out TEST components",
-    )
-
-    # Reference only: evaluate the original base scoring/threshold.
-    original_base_metrics = evaluate_scores(
-        test_raw_scores,
-        original_base_threshold,
-        normal_label=0,
-    )
-    original_base_predictions = test_raw_scores.copy()
-    original_base_predictions["prediction"] = (
-        original_base_predictions["score"] > original_base_threshold
-    ).astype(int)
-    original_base_predictions.to_csv(
-        out_dir / "original_base_predictions.csv",
-        index=False,
-    )
-    save_classification_report_files(
-        original_base_metrics,
-        out_dir,
-        prefix="original_base_test",
     )
 
     # ==============================================================
@@ -717,21 +658,15 @@ def predict_in_domain(cfg, config_path: str):
             "stage": "predict",
             "mode": "in_domain",
             "dataset": dataset_name,
-            # Final/main result for backward compatibility.
             "metrics": metrics,
             "robust_scoring": robust_params,
             "robust_threshold": float(robust_threshold),
-            # Reference only; do not choose methods per dataset using test F1.
-            "original_base_metrics": original_base_metrics,
-            "original_base_threshold": float(original_base_threshold),
         },
         out_dir / cfg["outputs"].get("results_file", "results.json"),
     )
 
     print("=" * 80)
     print("[IN-DOMAIN PREDICTION FINISHED]")
-    print("[Original Base TEST Classification Report - reference]")
-    print(original_base_metrics["classification_report_text"])
     print("[Robust-Normalized FINAL TEST Classification Report]")
     print(metrics["classification_report_text"])
     print("=" * 80)
@@ -745,7 +680,7 @@ def run_in_domain(cfg, config_path: str):
     """
 
     train_in_domain(cfg, config_path)
-    predict_in_domain(cfg, config_path)
+    predict_in_domain(cfg)
 
 
 # ======================================================
@@ -799,7 +734,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         cfg,
         dataset=target_dataset,
         split=mode_cfg["target_adapt_split"],
-        normal_only=mode_cfg.get("target_adapt_normal_only", True),
+        normal_only=True,
         target_normal_ratio=mode_cfg.get("target_normal_ratio"),
         target_normal_max_samples=mode_cfg.get("target_normal_max_samples"),
     )
@@ -808,7 +743,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         cfg,
         dataset=target_dataset,
         split=mode_cfg["target_val_split"],
-        normal_only=mode_cfg.get("target_val_normal_only", True),
+        normal_only=True,
     )
 
     print(
@@ -916,7 +851,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
 # ======================================================
 
 
-def predict_fewshot_target_adaptation(cfg, config_path: str):
+def predict_fewshot_target_adaptation(cfg):
     """
     Few-shot target prediction with the same robust normalization protocol.
 
@@ -978,23 +913,16 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         target_val_normal_loader,
         target_center,
         device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
+        alpha_mlm=ROBUST_MLM_WEIGHT,
+        beta_center=ROBUST_CENTER_WEIGHT,
         desc="Scoring TARGET NORMAL validation components",
-    )
-
-    original_base_threshold = calibrate_threshold(
-        val_normal_raw_scores["score"],
-        method=cfg["threshold"]["method"],
-        percentile=cfg["threshold"].get("percentile", 95),
-        fixed_threshold=cfg["prediction_stage"].get("anomaly_threshold", 0.5),
     )
 
     # ==============================================================
     # STEP 4 - FIT ROBUST NORMALIZATION ON TARGET NORMAL VALIDATION
     # ==============================================================
     print("[STEP 4/10] Fit robust median/MAD normalization on TARGET NORMAL validation")
-    robust_params = fit_robust_score_normalizer(cfg, val_normal_raw_scores)
+    robust_params = fit_robust_score_normalizer(val_normal_raw_scores)
     robust_val_normal_scores = apply_robust_score_normalization(
         val_normal_raw_scores,
         robust_params,
@@ -1061,28 +989,9 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         target_test_loader,
         target_center,
         device,
-        alpha_mlm=cfg["hybrid_scoring"]["alpha_mlm"],
-        beta_center=cfg["hybrid_scoring"]["beta_center"],
+        alpha_mlm=ROBUST_MLM_WEIGHT,
+        beta_center=ROBUST_CENTER_WEIGHT,
         desc="Scoring held-out TARGET TEST components",
-    )
-
-    original_base_metrics = evaluate_scores(
-        test_raw_scores,
-        original_base_threshold,
-        normal_label=0,
-    )
-    original_base_predictions = test_raw_scores.copy()
-    original_base_predictions["prediction"] = (
-        original_base_predictions["score"] > original_base_threshold
-    ).astype(int)
-    original_base_predictions.to_csv(
-        out_dir / "original_base_predictions.csv",
-        index=False,
-    )
-    save_classification_report_files(
-        original_base_metrics,
-        out_dir,
-        prefix="original_base_test",
     )
 
     # ==============================================================
@@ -1125,16 +1034,12 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
             "metrics": metrics,
             "robust_scoring": robust_params,
             "robust_threshold": float(robust_threshold),
-            "original_base_metrics": original_base_metrics,
-            "original_base_threshold": float(original_base_threshold),
         },
         out_dir / cfg["outputs"].get("results_file", "results.json"),
     )
 
     print("=" * 80)
     print("[FEW-SHOT TARGET ADAPTATION PREDICTION FINISHED]")
-    print("[Original Base TARGET TEST Classification Report - reference]")
-    print(original_base_metrics["classification_report_text"])
     print("[Robust-Normalized FINAL TARGET TEST Classification Report]")
     print(metrics["classification_report_text"])
     print("=" * 80)
@@ -1148,12 +1053,7 @@ def run_fewshot_target_adaptation(cfg, config_path: str):
     """
 
     train_fewshot_target_adaptation(cfg, config_path)
-    predict_fewshot_target_adaptation(cfg, config_path)
-
-
-# ======================================================
-# SHARED POSTHOC ONLY
-# ======================================================
+    predict_fewshot_target_adaptation(cfg)
 
 
 def main():
@@ -1167,18 +1067,11 @@ def main():
     mode = cfg["experiment"]["mode"]
     stage = cfg["experiment"].get("stage", "train_predict")
 
-    # Post-hoc calibration has intentionally been removed from this version.
-    if stage == "posthoc_only":
-        raise ValueError(
-            "stage='posthoc_only' is disabled in ROBUST_NORMALIZED_SCORE_V1. "
-            "Use stage='predict' or 'train_predict'."
-        )
-
     if mode == "in_domain":
         if stage == "train":
             train_in_domain(cfg, args.config)
         elif stage == "predict":
-            predict_in_domain(cfg, args.config)
+            predict_in_domain(cfg)
         elif stage == "train_predict":
             run_in_domain(cfg, args.config)
         else:
@@ -1191,7 +1084,7 @@ def main():
         if stage == "train":
             train_fewshot_target_adaptation(cfg, args.config)
         elif stage == "predict":
-            predict_fewshot_target_adaptation(cfg, args.config)
+            predict_fewshot_target_adaptation(cfg)
         elif stage == "train_predict":
             run_fewshot_target_adaptation(cfg, args.config)
         else:
