@@ -34,8 +34,10 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.config import load_config
 #from src.unsupervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
 #                                  predict_fewshot_target_adaptation, run_posthoc_only, )
-from src.Supervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
-                                  predict_fewshot_target_adaptation, run_posthoc_only, )
+#from src.Supervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+#                                  predict_fewshot_target_adaptation, run_posthoc_only, )
+from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+                                  predict_fewshot_target_adaptation,)
 
 # ======================================================
 # ARGUMENTS
