@@ -203,7 +203,7 @@ prediction_stage:
 # ======================================================
 posthoc_calibration:
   enabled: true
-
+  anomaly_fraction : 0.20
   # For BGL in-domain, macro_f1 is usually a good balanced metric.
   # Options:
   #   "macro_f1"
