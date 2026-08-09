@@ -127,12 +127,12 @@ def load_saved_model_tokenizer_center(
 #     on NORMAL validation samples.
 #   * The normal validation split is divided into FIT and TUNE subsets.
 #   * Synthetic anomaly-like sequences are created only from TUNE normals.
-#   * A small validation-only grid selects ONLY MLM/center weights.
-#   * The threshold percentile is FIXED globally at 95.0.
+#   * A small validation-only grid selects MLM/center weights and a NARROW
+#     threshold-percentile range around the original 95th percentile.
 #   * Selected parameters are frozen before the TEST split is loaded.
 # ======================================================
 
-ROBUST_SCORING_VERSION = "ROBUST_NORMALIZED_SCORE_V3_WEIGHT_ONLY_TUNING"
+ROBUST_SCORING_VERSION = "ROBUST_NORMALIZED_SCORE_V4_CONSTRAINED_WEIGHT_PERCENTILE_TUNING"
 
 # ------------------------------------------------------------------
 # Validation-only tuning configuration.
@@ -149,7 +149,7 @@ ROBUST_EPSILON = 1e-12
 
 TUNING_FIT_RATIO = 0.60
 
-# Tune ONLY the score weights. The threshold percentile is fixed globally.
+# Tune score weights plus a narrow threshold-percentile range.
 TUNING_WEIGHT_CANDIDATES = [
     (0.00, 1.00),
     (0.10, 0.90),
@@ -163,10 +163,10 @@ TUNING_WEIGHT_CANDIDATES = [
     (0.90, 0.10),
     (1.00, 0.00),
 ]
-FIXED_THRESHOLD_PERCENTILE = 95.0
+TUNING_PERCENTILE_CANDIDATES = [94.0, 95.0, 96.0, 97.0]
+BASELINE_PERCENTILE = 95.0
 BASELINE_MLM_WEIGHT = 0.50
 BASELINE_CENTER_WEIGHT = 0.50
-MIN_SYNTHETIC_F1_GAIN = 0.01
 TUNING_SYNTHETIC_PER_NORMAL = 1
 
 # Temporary weights used only while score_loader extracts mlm_loss and
@@ -516,26 +516,25 @@ def _combine_robust_components(score_df: pd.DataFrame, mlm_weight: float, center
     )
 
 
-def tune_weights_on_synthetic_validation(
+def tune_weights_and_percentile_on_synthetic_validation(
     fit_scores: pd.DataFrame,
     tune_normal_scores: pd.DataFrame,
     tune_synthetic_scores: pd.DataFrame,
 ):
     """
-    Tune ONLY MLM/center weights using validation-derived data.
+    Tune MLM/center weights plus a NARROW threshold-percentile range using
+    validation-derived data only.
 
     IMPORTANT:
-      * Threshold percentile is fixed globally at 95.0.
       * No real anomalous validation labels are used.
       * No test data/test scores/test labels are used.
-      * The 0.5/0.5 weight pair is the baseline.
-      * A tuned candidate is accepted only if, on the synthetic-validation
-        task, precision, recall, anomaly F1 and macro F1 are not lower than
-        the baseline and anomaly F1 improves by at least 0.01.
-      * Otherwise, the baseline 0.5/0.5 weights are retained.
+      * Baseline = MLM 0.5 / Center 0.5 / percentile 95.
+      * A non-baseline candidate is accepted ONLY if synthetic-validation
+        anomaly precision, recall, and F1 are ALL strictly better than the
+        baseline. Otherwise, the baseline is retained.
 
-    Candidate thresholds are always estimated from the disjoint normal FIT
-    subset at FIXED_THRESHOLD_PERCENTILE.
+    Candidate thresholds are estimated only from the disjoint normal FIT
+    subset. The TUNE subset contains real normals plus synthetic anomalies.
     """
     records = []
 
@@ -560,59 +559,60 @@ def tune_weights_on_synthetic_validation(
             [tune_normal_combined, tune_synthetic_combined]
         )
 
-        threshold = float(
-            np.percentile(fit_combined, FIXED_THRESHOLD_PERCENTILE)
-        )
-        y_pred = (tune_combined > threshold).astype(np.int64)
+        for percentile in TUNING_PERCENTILE_CANDIDATES:
+            threshold = float(np.percentile(fit_combined, percentile))
+            y_pred = (tune_combined > threshold).astype(np.int64)
 
-        macro_f1 = float(
-            f1_score(y_true, y_pred, average="macro", zero_division=0)
-        )
-        anomaly_f1 = float(
-            f1_score(y_true, y_pred, average="binary", zero_division=0)
-        )
-        anomaly_precision = float(
-            precision_score(y_true, y_pred, zero_division=0)
-        )
-        anomaly_recall = float(
-            recall_score(y_true, y_pred, zero_division=0)
-        )
-        accuracy = float(accuracy_score(y_true, y_pred))
+            macro_f1 = float(
+                f1_score(y_true, y_pred, average="macro", zero_division=0)
+            )
+            anomaly_f1 = float(
+                f1_score(y_true, y_pred, average="binary", zero_division=0)
+            )
+            anomaly_precision = float(
+                precision_score(y_true, y_pred, zero_division=0)
+            )
+            anomaly_recall = float(
+                recall_score(y_true, y_pred, zero_division=0)
+            )
+            accuracy = float(accuracy_score(y_true, y_pred))
 
-        records.append(
-            {
-                "mlm_weight": float(mlm_weight),
-                "center_weight": float(center_weight),
-                "percentile": float(FIXED_THRESHOLD_PERCENTILE),
-                "fit_threshold": threshold,
-                "macro_f1": macro_f1,
-                "anomaly_f1": anomaly_f1,
-                "anomaly_precision": anomaly_precision,
-                "anomaly_recall": anomaly_recall,
-                "accuracy": accuracy,
-            }
-        )
+            records.append(
+                {
+                    "mlm_weight": float(mlm_weight),
+                    "center_weight": float(center_weight),
+                    "percentile": float(percentile),
+                    "fit_threshold": threshold,
+                    "macro_f1": macro_f1,
+                    "anomaly_f1": anomaly_f1,
+                    "anomaly_precision": anomaly_precision,
+                    "anomaly_recall": anomaly_recall,
+                    "accuracy": accuracy,
+                }
+            )
 
     tuning_df = pd.DataFrame(records)
 
     baseline_mask = (
         np.isclose(tuning_df["mlm_weight"], BASELINE_MLM_WEIGHT)
         & np.isclose(tuning_df["center_weight"], BASELINE_CENTER_WEIGHT)
+        & np.isclose(tuning_df["percentile"], BASELINE_PERCENTILE)
     )
     if not baseline_mask.any():
         raise ValueError(
-            "Baseline 0.5/0.5 weights are missing from TUNING_WEIGHT_CANDIDATES."
+            "Baseline configuration (0.5/0.5 weights, percentile 95) "
+            "is missing from the tuning candidate grid."
         )
 
     baseline = tuning_df.loc[baseline_mask].iloc[0].to_dict()
 
-    # Conservative multi-metric gate: do not accept a candidate that buys one
-    # metric by sacrificing another on the validation-only synthetic task.
+    # Strict three-metric gate. This prevents the tuner from increasing recall
+    # by sacrificing precision (or vice versa) on the validation-only task.
+    eps = 1e-12
     eligible = tuning_df[
-        (tuning_df["anomaly_precision"] >= baseline["anomaly_precision"])
-        & (tuning_df["anomaly_recall"] >= baseline["anomaly_recall"])
-        & (tuning_df["anomaly_f1"] >= baseline["anomaly_f1"] + MIN_SYNTHETIC_F1_GAIN)
-        & (tuning_df["macro_f1"] >= baseline["macro_f1"])
+        (tuning_df["anomaly_precision"] > baseline["anomaly_precision"] + eps)
+        & (tuning_df["anomaly_recall"] > baseline["anomaly_recall"] + eps)
+        & (tuning_df["anomaly_f1"] > baseline["anomaly_f1"] + eps)
     ].copy()
 
     if eligible.empty:
@@ -625,17 +625,24 @@ def tune_weights_on_synthetic_validation(
         eligible["min_precision_recall"] = np.minimum(
             eligible["anomaly_precision"], eligible["anomaly_recall"]
         )
+        # First reward balance between precision/recall, then F1.
         eligible = eligible.sort_values(
-            ["anomaly_f1", "min_precision_recall", "macro_f1", "accuracy"],
+            [
+                "min_precision_recall",
+                "anomaly_f1",
+                "macro_f1",
+                "accuracy",
+            ],
             ascending=[False, False, False, False],
         )
         best = eligible.iloc[0].to_dict()
-        selection_reason = "accepted_validation_candidate"
+        selection_reason = "accepted_candidate_improved_precision_recall_and_f1"
 
     tuning_df["is_baseline"] = baseline_mask
     tuning_df["is_selected"] = (
         np.isclose(tuning_df["mlm_weight"], float(best["mlm_weight"]))
         & np.isclose(tuning_df["center_weight"], float(best["center_weight"]))
+        & np.isclose(tuning_df["percentile"], float(best["percentile"]))
     )
     tuning_df = tuning_df.sort_values(
         ["is_selected", "anomaly_f1", "macro_f1"],
@@ -647,22 +654,24 @@ def tune_weights_on_synthetic_validation(
     best["baseline_anomaly_recall"] = float(baseline["anomaly_recall"])
     best["baseline_anomaly_f1"] = float(baseline["anomaly_f1"])
     best["baseline_macro_f1"] = float(baseline["macro_f1"])
+    best["baseline_percentile"] = float(BASELINE_PERCENTILE)
 
     print("=" * 80)
-    print("[VALIDATION-ONLY WEIGHT TUNING - FIXED 95TH PERCENTILE]")
+    print("[VALIDATION-ONLY CONSTRAINED WEIGHT + PERCENTILE TUNING]")
     print("Selection uses: real NORMAL validation + SYNTHETIC anomalies")
     print("Real anomalous validation labels used: NO")
     print("Test data/test scores/test labels used: NO")
-    print(f"fixed percentile          : {FIXED_THRESHOLD_PERCENTILE:.2f}")
     print(
-        f"baseline weights          : MLM={BASELINE_MLM_WEIGHT:.2f}, "
-        f"Center={BASELINE_CENTER_WEIGHT:.2f}"
+        f"baseline configuration    : MLM={BASELINE_MLM_WEIGHT:.2f}, "
+        f"Center={BASELINE_CENTER_WEIGHT:.2f}, "
+        f"Percentile={BASELINE_PERCENTILE:.2f}"
     )
     print(f"baseline precision        : {baseline['anomaly_precision']:.4f}")
     print(f"baseline recall           : {baseline['anomaly_recall']:.4f}")
     print(f"baseline anomaly F1       : {baseline['anomaly_f1']:.4f}")
     print(f"selected MLM weight       : {best['mlm_weight']:.2f}")
     print(f"selected center weight    : {best['center_weight']:.2f}")
+    print(f"selected percentile       : {best['percentile']:.2f}")
     print(f"selected precision        : {best['anomaly_precision']:.4f}")
     print(f"selected recall           : {best['anomaly_recall']:.4f}")
     print(f"selected anomaly F1       : {best['anomaly_f1']:.4f}")
@@ -744,7 +753,7 @@ def fit_and_tune_robust_scoring(
         tune_synthetic_raw, search_params
     )
 
-    best, tuning_df = tune_weights_on_synthetic_validation(
+    best, tuning_df = tune_weights_and_percentile_on_synthetic_validation(
         fit_robust,
         tune_normal_robust,
         tune_synthetic_robust,
@@ -760,7 +769,7 @@ def fit_and_tune_robust_scoring(
     final_params = fit_robust_score_normalizer(all_normal_raw)
     final_params["mlm_weight"] = float(best["mlm_weight"])
     final_params["center_weight"] = float(best["center_weight"])
-    final_params["selected_percentile"] = float(FIXED_THRESHOLD_PERCENTILE)
+    final_params["selected_percentile"] = float(best["percentile"])
     final_params["tuning_fit_ratio"] = float(TUNING_FIT_RATIO)
     final_params["tuning_method"] = "normal_validation_plus_synthetic_anomalies"
     final_params["real_anomaly_validation_labels_used"] = False
@@ -779,7 +788,7 @@ def fit_and_tune_robust_scoring(
     final_threshold = float(
         np.percentile(
             all_normal_robust["score"].to_numpy(dtype=np.float64),
-            float(FIXED_THRESHOLD_PERCENTILE),
+            float(best["percentile"]),
         )
     )
     final_params["threshold"] = final_threshold
@@ -788,7 +797,7 @@ def fit_and_tune_robust_scoring(
     print("[FINAL FROZEN VALIDATION-SELECTED SCORING]")
     print(f"MLM weight    : {final_params['mlm_weight']:.2f}")
     print(f"Center weight : {final_params['center_weight']:.2f}")
-    print(f"Percentile    : {FIXED_THRESHOLD_PERCENTILE:.2f} (fixed globally)")
+    print(f"Percentile    : {final_params['selected_percentile']:.2f} (selected on validation)")
     print(f"Threshold     : {final_threshold:.10f}")
     print("TEST HAS NOT BEEN LOADED YET")
     print("=" * 80)
@@ -936,7 +945,7 @@ def predict_in_domain(cfg,config_path: str):
              real TUNE normals vs synthetic TUNE anomalies.
          No real anomalous validation labels are used.
       7) Refit robust normalizer on all normal validation samples and freeze
-         selected weights + fixed-percentile threshold.
+         selected weights + validation-selected narrow-range percentile threshold.
       8) ONLY NOW load the held-out TEST set.
       9) Apply frozen scoring to TEST.
      10) Use TEST labels only for final evaluation.
@@ -1057,7 +1066,7 @@ def predict_in_domain(cfg,config_path: str):
 
     print("=" * 80)
     print("[IN-DOMAIN PREDICTION FINISHED]")
-    print("[Weight-Tuned Robust FINAL TEST Classification Report]")
+    print("[Constrained-Tuned Robust FINAL TEST Classification Report]")
     print(metrics["classification_report_text"])
     print("=" * 80)
 
@@ -1368,7 +1377,7 @@ def predict_fewshot_target_adaptation(cfg):
 
     print("=" * 80)
     print("[FEW-SHOT TARGET ADAPTATION PREDICTION FINISHED]")
-    print("[Weight-Tuned Robust FINAL TARGET TEST Classification Report]")
+    print("[Constrained-Tuned Robust FINAL TARGET TEST Classification Report]")
     print(metrics["classification_report_text"])
     print("=" * 80)
 
