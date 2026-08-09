@@ -466,7 +466,7 @@ def train_in_domain(cfg, config_path: str):
 # ======================================================
 
 
-def predict_in_domain(cfg):
+def predict_in_domain(cfg,config_path: str):
     """
     In-domain prediction with robust component normalization.
 
