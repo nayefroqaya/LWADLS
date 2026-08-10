@@ -68,9 +68,8 @@ def get_center_config(cfg):
     }
 
 
-def build_limited_calibration_set(
+def build_limited_anomaly_calibration_set(
     seq_df: pd.DataFrame,
-    normal_fraction: float,
     anomaly_fraction: float,
     seed: int,
 ):
@@ -78,19 +77,10 @@ def build_limited_calibration_set(
     Build the labeled validation subset used by post-hoc calibration.
 
     Calibration uses:
-        - only a fixed fraction of NORMAL validation sequences
-        - only a fixed fraction of ANOMALOUS validation sequences
+        - ALL normal validation sequences
+        - only a fixed fraction of anomalous validation sequences
 
-    With normal_fraction=0.20 and anomaly_fraction=0.20, the calibration
-    subset preserves (approximately) the original validation class ratio
-    while exposing only 20% of each class to supervised post-hoc calibration.
-
-    IMPORTANT:
-        The FULL normal validation set is still used elsewhere for:
-            - normal center/prototype construction
-            - original/base threshold calibration
-
-        This helper affects ONLY the supervised post-hoc calibration subset.
+    The remaining anomalous validation sequences are excluded from calibration.
 
     Notes
     -----
@@ -98,21 +88,14 @@ def build_limited_calibration_set(
       already returns sequence-level rows with binary labels:
           0 = normal
           1 = anomaly
-    * The random seed makes both sampled subsets reproducible.
+    * The random seed makes the 20% anomaly subset reproducible.
     """
     if "label" not in seq_df.columns:
         raise ValueError(
             "Validation sequence dataframe must contain a 'label' column."
         )
 
-    normal_fraction = float(normal_fraction)
     anomaly_fraction = float(anomaly_fraction)
-
-    if not 0.0 < normal_fraction <= 1.0:
-        raise ValueError(
-            f"normal_fraction must be in (0, 1], got {normal_fraction}."
-        )
-
     if not 0.0 < anomaly_fraction <= 1.0:
         raise ValueError(
             f"anomaly_fraction must be in (0, 1], got {anomaly_fraction}."
@@ -130,36 +113,22 @@ def build_limited_calibration_set(
             "Label-based post-hoc calibration requires at least one anomaly."
         )
 
-    # Approximately the requested fraction of each class.
-    # max(1, ...) keeps calibration usable for very small validation sets.
-    num_normal_used = max(
-        1,
-        int(round(len(normal_df) * normal_fraction)),
-    )
+    # Approximately 20% when anomaly_fraction=0.20.
+    # max(1, ...) keeps the calibration usable for very small validation sets.
     num_anomaly_used = max(
         1,
         int(round(len(anomaly_df) * anomaly_fraction)),
     )
-
-    num_normal_used = min(num_normal_used, len(normal_df))
     num_anomaly_used = min(num_anomaly_used, len(anomaly_df))
 
-    normal_sample_df = normal_df.sample(
-        n=num_normal_used,
+    anomaly_sample_df = anomaly_df.sample(
+        n=num_anomaly_used,
         replace=False,
         random_state=int(seed),
     ).copy()
 
-    # Use a deterministic but different seed for anomalies so the two
-    # class-specific draws are independently reproducible.
-    anomaly_sample_df = anomaly_df.sample(
-        n=num_anomaly_used,
-        replace=False,
-        random_state=int(seed) + 1,
-    ).copy()
-
     calibration_df = pd.concat(
-        [normal_sample_df, anomaly_sample_df],
+        [normal_df, anomaly_sample_df],
         ignore_index=True,
     )
 
@@ -170,70 +139,40 @@ def build_limited_calibration_set(
         random_state=int(seed),
     ).reset_index(drop=True)
 
-    original_anomaly_rate = float(len(anomaly_df) / len(seq_df))
-    calibration_anomaly_rate = float(num_anomaly_used / len(calibration_df))
-
     info = {
-        "normal_fraction_requested": normal_fraction,
         "anomaly_fraction_requested": anomaly_fraction,
         "seed": int(seed),
         "normal_validation_total": int(len(normal_df)),
         "anomaly_validation_total": int(len(anomaly_df)),
-        "normal_used_for_calibration": int(num_normal_used),
+        "normal_used_for_calibration": int(len(normal_df)),
         "anomaly_used_for_calibration": int(num_anomaly_used),
-        "normal_excluded_from_calibration": int(
-            len(normal_df) - num_normal_used
-        ),
         "anomaly_excluded_from_calibration": int(
             len(anomaly_df) - num_anomaly_used
         ),
         "calibration_total": int(len(calibration_df)),
-        "realized_normal_fraction_of_available_normals": float(
-            num_normal_used / len(normal_df)
-        ),
         "realized_anomaly_fraction_of_available_anomalies": float(
             num_anomaly_used / len(anomaly_df)
         ),
-        "original_validation_anomaly_rate": original_anomaly_rate,
-        "calibration_subset_anomaly_rate": calibration_anomaly_rate,
     }
 
     print("=" * 80)
-    print("[LIMITED BALANCED-FRACTION VALIDATION CALIBRATION SET]")
-    print(f"Total normal validation sequences    : {len(normal_df):,}")
+    print("[LIMITED-ANOMALY VALIDATION CALIBRATION SET]")
+    print(f"All normal validation sequences used : {len(normal_df):,}")
     print(f"Total anomaly validation sequences   : {len(anomaly_df):,}")
-    print(
-        f"Normal fraction requested            : "
-        f"{100.0 * normal_fraction:.1f}%"
-    )
     print(
         f"Anomaly fraction requested           : "
         f"{100.0 * anomaly_fraction:.1f}%"
     )
-    print(f"Normal sequences used                : {num_normal_used:,}")
     print(f"Anomaly sequences used               : {num_anomaly_used:,}")
-    print(
-        f"Normal sequences excluded            : "
-        f"{len(normal_df) - num_normal_used:,}"
-    )
     print(
         f"Anomaly sequences excluded           : "
         f"{len(anomaly_df) - num_anomaly_used:,}"
     )
     print(f"Calibration subset size              : {len(calibration_df):,}")
-    print(
-        f"Original validation anomaly rate     : "
-        f"{100.0 * original_anomaly_rate:.3f}%"
-    )
-    print(
-        f"Calibration subset anomaly rate      : "
-        f"{100.0 * calibration_anomaly_rate:.3f}%"
-    )
     print(f"Sampling seed                        : {int(seed)}")
     print("=" * 80)
 
     return calibration_df, info
-
 
 
 def load_saved_model_tokenizer_center(
@@ -455,9 +394,9 @@ def predict_in_domain(cfg, config_path: str):
 
     Calibration protocol:
         1) NORMAL-ONLY validation data -> original/base threshold.
-        2) Labeled calibration subset -> 20% of validation normals + 20%
-           of validation anomalies by default (configurable via
-           posthoc_calibration.normal_fraction and anomaly_fraction).
+        2) Labeled calibration subset -> ALL validation normals + only 20%
+           of validation anomalies (or the fraction configured in
+           posthoc_calibration.anomaly_fraction).
         3) Post-hoc alpha/beta/percentile/threshold are selected ONLY from
            that limited validation subset.
         4) Parameters are frozen.
@@ -476,19 +415,15 @@ def predict_in_domain(cfg, config_path: str):
     dataset_name = mode_cfg["dataset_name"]
     seed = int(cfg["experiment"].get("seed", 42))
 
-    # Default: expose only 20% of each validation class to post-hoc calibration.
-    calibration_cfg = cfg.get("posthoc_calibration", {})
-    normal_fraction = float(calibration_cfg.get("normal_fraction", 0.20))
-    anomaly_fraction = float(calibration_cfg.get("anomaly_fraction", 0.20))
+    # Default: expose only 20% of validation anomalies to calibration.
+    anomaly_fraction = float(
+        cfg.get("posthoc_calibration", {}).get("anomaly_fraction", 0.20)
+    )
 
     print("=" * 80)
     print("[Stage] PREDICT ONLY")
     print("[Mode] in_domain")
     print(f"[Dataset] {dataset_name}")
-    print(
-        f"[Calibration normal budget] "
-        f"{100.0 * normal_fraction:.1f}% of validation normals"
-    )
     print(
         f"[Calibration anomaly budget] "
         f"{100.0 * anomaly_fraction:.1f}% of validation anomalies"
@@ -515,14 +450,12 @@ def predict_in_domain(cfg, config_path: str):
 
     # ------------------------------------------------------------------
     # VALIDATION POOL FOR LIMITED SUPERVISED CALIBRATION
-    # Load the benchmark validation pool, then expose only:
-    #     normal_fraction of normal sequences
-    #     anomaly_fraction of anomaly sequences
+    # Load the benchmark validation pool, then expose:
+    #     ALL normal sequences
+    #     ONLY anomaly_fraction of anomaly sequences
     #
-    # With both set to 0.20, post-hoc calibration uses 20% of each class,
-    # approximately preserving the original validation class ratio.
-    # The FULL normal validation view above remains unchanged for the base
-    # threshold and normal-reference computations.
+    # The remaining anomalous validation sequences are NOT passed to the
+    # post-hoc calibration search.
     # ------------------------------------------------------------------
     val_pool_df = load_sequences_for_dataset(
         cfg,
@@ -532,9 +465,8 @@ def predict_in_domain(cfg, config_path: str):
     )
 
     val_calibration_df, calibration_info = (
-        build_limited_calibration_set(
+        build_limited_anomaly_calibration_set(
             val_pool_df,
-            normal_fraction=normal_fraction,
             anomaly_fraction=anomaly_fraction,
             seed=seed,
         )
@@ -585,7 +517,7 @@ def predict_in_domain(cfg, config_path: str):
 
     # ------------------------------------------------------------------
     # POST-HOC CALIBRATION:
-    # 20% validation normals + 20% validation anomalies by default.
+    # ALL validation normals + ONLY 20% (default) validation anomalies.
     # ------------------------------------------------------------------
     val_calibration_scores = score_loader(
         model,
@@ -596,7 +528,7 @@ def predict_in_domain(cfg, config_path: str):
         beta_center=cfg["hybrid_scoring"]["beta_center"],
         desc=(
             "Scoring LIMITED labeled validation subset "
-            "(sampled normals + sampled anomalies)"
+            "(all normal + sampled anomalies)"
         ),
     )
 
@@ -608,20 +540,9 @@ def predict_in_domain(cfg, config_path: str):
             "normal and anomaly samples."
         )
 
-    scored_normal_count = int(
-        (val_calibration_scores["label"].astype(int) == 0).sum()
-    )
     scored_anomaly_count = int(
         (val_calibration_scores["label"].astype(int) != 0).sum()
     )
-
-    if scored_normal_count != calibration_info["normal_used_for_calibration"]:
-        raise RuntimeError(
-            "Unexpected normal count after scoring calibration subset: "
-            f"expected={calibration_info['normal_used_for_calibration']}, "
-            f"got={scored_normal_count}."
-        )
-
     if scored_anomaly_count != calibration_info["anomaly_used_for_calibration"]:
         raise RuntimeError(
             "Unexpected anomaly count after scoring calibration subset: "
@@ -630,7 +551,7 @@ def predict_in_domain(cfg, config_path: str):
         )
 
     # Save ONLY the limited calibration subset scores.
-    # stage=posthoc_only will therefore also use the same sampled class fractions.
+    # stage=posthoc_only will therefore also use the same 20% anomaly budget.
     validation_calibration_file = (
         out_dir / "validation_calibration_scores.csv"
     )
@@ -792,13 +713,13 @@ def predict_in_domain(cfg, config_path: str):
     print("[Base test Classification Report]")
     print(metrics["classification_report_text"])
 
-    print("[Validation calibration sampling: sampled normals + sampled anomalies]")
+    print("[Validation calibration sampling]")
     print(calibration_info)
 
     if posthoc_best is not None:
         print(
             "[Post-hoc best selected on LIMITED VALIDATION "
-            "(sampled normals + sampled anomalies)]"
+            "(all normal + sampled anomalies)]"
         )
         print(posthoc_best)
         print("[Final post-hoc TEST Classification Report]")
@@ -995,8 +916,8 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
 
     Calibration protocol on the TARGET validation split:
         1) NORMAL-ONLY target validation -> original/base threshold.
-        2) Labeled calibration subset -> 20% of target validation normals +
-           20% of target validation anomalies by default.
+        2) Labeled calibration subset -> ALL target validation normals + only
+           20% of target validation anomalies (default).
         3) Post-hoc parameters are selected only from that limited subset.
         4) Parameters are frozen.
         5) Held-out target test is loaded/scored only after calibration.
@@ -1013,18 +934,14 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     target_dataset = mode_cfg["target_dataset"]
     seed = int(cfg["experiment"].get("seed", 42))
 
-    calibration_cfg = cfg.get("posthoc_calibration", {})
-    normal_fraction = float(calibration_cfg.get("normal_fraction", 0.20))
-    anomaly_fraction = float(calibration_cfg.get("anomaly_fraction", 0.20))
+    anomaly_fraction = float(
+        cfg.get("posthoc_calibration", {}).get("anomaly_fraction", 0.20)
+    )
 
     print("=" * 80)
     print("[Stage] PREDICT ONLY")
     print("[Mode] fewshot_target_adaptation")
     print(f"[Target dataset] {target_dataset}")
-    print(
-        f"[Target calibration normal budget] "
-        f"{100.0 * normal_fraction:.1f}% of validation normals"
-    )
     print(
         f"[Target calibration anomaly budget] "
         f"{100.0 * anomaly_fraction:.1f}% of validation anomalies"
@@ -1050,10 +967,8 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
 
     # ------------------------------------------------------------------
     # TARGET VALIDATION POOL:
-    # Build a calibration subset containing only normal_fraction of target
-    # validation normals and anomaly_fraction of target validation anomalies.
-    # With both set to 0.20, the original target-validation class ratio is
-    # approximately preserved.
+    # Build a calibration subset containing all target validation normals
+    # and only anomaly_fraction of target validation anomalies.
     # ------------------------------------------------------------------
     target_val_pool_df = load_sequences_for_dataset(
         cfg,
@@ -1063,9 +978,8 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     )
 
     target_val_calibration_df, calibration_info = (
-        build_limited_calibration_set(
+        build_limited_anomaly_calibration_set(
             target_val_pool_df,
-            normal_fraction=normal_fraction,
             anomaly_fraction=anomaly_fraction,
             seed=seed,
         )
@@ -1122,7 +1036,7 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
         beta_center=cfg["hybrid_scoring"]["beta_center"],
         desc=(
             "Scoring LIMITED target validation subset "
-            "(sampled normals + sampled anomalies)"
+            "(all normal + sampled anomalies)"
         ),
     )
 
@@ -1132,20 +1046,9 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
             "both normal and anomaly samples."
         )
 
-    scored_normal_count = int(
-        (val_calibration_scores["label"].astype(int) == 0).sum()
-    )
     scored_anomaly_count = int(
         (val_calibration_scores["label"].astype(int) != 0).sum()
     )
-
-    if scored_normal_count != calibration_info["normal_used_for_calibration"]:
-        raise RuntimeError(
-            "Unexpected target normal count after scoring calibration subset: "
-            f"expected={calibration_info['normal_used_for_calibration']}, "
-            f"got={scored_normal_count}."
-        )
-
     if scored_anomaly_count != calibration_info["anomaly_used_for_calibration"]:
         raise RuntimeError(
             "Unexpected target anomaly count after scoring calibration subset: "
@@ -1311,13 +1214,13 @@ def predict_fewshot_target_adaptation(cfg, config_path: str):
     print("[Base target test Classification Report]")
     print(metrics["classification_report_text"])
 
-    print("[Target validation calibration sampling: sampled normals + sampled anomalies]")
+    print("[Target validation calibration sampling]")
     print(calibration_info)
 
     if posthoc_best is not None:
         print(
             "[Post-hoc best selected on LIMITED TARGET VALIDATION "
-            "(sampled normals + sampled anomalies)]"
+            "(all normal + sampled anomalies)]"
         )
         print(posthoc_best)
         print("[Final post-hoc TARGET TEST Classification Report]")
@@ -1352,7 +1255,7 @@ def run_posthoc_only(cfg):
     IMPORTANT:
     The grid search is performed on validation_calibration_scores.csv, which is
     created by the predict stage from the LIMITED labeled validation subset:
-        - only the configured fraction of validation normals (default 20%)
+        - all normal validation sequences
         - only the configured fraction of validation anomalies (default 20%)
 
     predictions.csv contains held-out test scores and is NEVER used for
@@ -1381,8 +1284,8 @@ def run_posthoc_only(cfg):
         raise FileNotFoundError(
             f"Calibration sampling metadata not found: {calibration_sampling_file}\n"
             "Refusing to run posthoc_only because the existing calibration CSV "
-            "may come from an older run that used a different calibration subset. "
-            "Run stage: predict first with LIMITED_BALANCED_FRACTION_VALIDATION_V2."
+            "may come from an older run that used all validation anomalies. "
+            "Run stage: predict first with LIMITED_ANOMALY_VALIDATION_V1."
         )
 
     print("=" * 80)
@@ -1398,26 +1301,12 @@ def run_posthoc_only(cfg):
 
     validation_score_df = pd.read_csv(validation_calibration_file)
 
-    expected_normals = int(
-        calibration_info["normal_used_for_calibration"]
-    )
     expected_anomalies = int(
         calibration_info["anomaly_used_for_calibration"]
-    )
-    actual_normals = int(
-        (validation_score_df["label"].astype(int) == 0).sum()
     )
     actual_anomalies = int(
         (validation_score_df["label"].astype(int) != 0).sum()
     )
-
-    if actual_normals != expected_normals:
-        raise RuntimeError(
-            "Saved calibration scores do not match sampling metadata: "
-            f"expected normals={expected_normals}, "
-            f"found={actual_normals}."
-        )
-
     if actual_anomalies != expected_anomalies:
         raise RuntimeError(
             "Saved calibration scores do not match sampling metadata: "
@@ -1507,21 +1396,13 @@ def main():
     mode = cfg["experiment"]["mode"]
     stage = cfg["experiment"].get("stage", "train_predict")
 
-    calibration_cfg = cfg.get("posthoc_calibration", {})
-    calibration_normal_fraction = float(
-        calibration_cfg.get("normal_fraction", 0.20)
+    calibration_fraction = float(
+        cfg.get("posthoc_calibration", {}).get("anomaly_fraction", 0.20)
     )
-    calibration_anomaly_fraction = float(
-        calibration_cfg.get("anomaly_fraction", 0.20)
-    )
-    print("[Calibration protocol] LIMITED_BALANCED_FRACTION_VALIDATION_V2")
-    print(
-        f"[Calibration normal fraction] "
-        f"{100.0 * calibration_normal_fraction:.1f}%"
-    )
+    print("[Calibration protocol] LIMITED_ANOMALY_VALIDATION_V1")
     print(
         f"[Calibration anomaly fraction] "
-        f"{100.0 * calibration_anomaly_fraction:.1f}%"
+        f"{100.0 * calibration_fraction:.1f}%"
     )
 
     if stage == "posthoc_only":
