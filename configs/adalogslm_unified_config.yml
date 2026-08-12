@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_BGL_HDFS_SP_150MB_ratio"
+  name: "AdaLogSLM_HDFS_BGL"
   mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_AdaLogSLM_BGL_HDFS_SP_150MB_ratio_3_source_New"
+  output_dir: "../outputs/AdaLogSLM_AdaLogSLM_HDFS_BGL_2_source_New"
 
 # ======================================================
 # PATHS
@@ -80,7 +80,7 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["HDFS","BGL","SP_150MB_ratio"]
+    source_datasets: ["HDFS","BGL"]
     source_train_split: "train"
 
     target_dataset: "TH_1G"
