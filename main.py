@@ -36,9 +36,10 @@ from src.config import load_config
 #                                  predict_fewshot_target_adaptation, run_posthoc_only, )
 #from src.Supervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
 #                                  predict_fewshot_target_adaptation, run_posthoc_only, )
-from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+#from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+#                          predict_fewshot_target_adaptation, )
+from src.normal_anom_fraction_train_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
                           predict_fewshot_target_adaptation, )
-
 # ======================================================
 # ARGUMENTS
 # ======================================================
@@ -46,9 +47,10 @@ from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_ad
 def parse_args():
     parser = argparse.ArgumentParser(description="Run SLMADLS / AdaLogSLM from main.py")
 
-    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
+   # parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
+   #                     help="Path to YAML config file.", )
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config_anom_norma_fracti_train.yml"),
                         help="Path to YAML config file.", )
-
     return parser.parse_args()
 
 

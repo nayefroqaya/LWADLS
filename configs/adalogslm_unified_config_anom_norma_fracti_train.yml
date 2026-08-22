@@ -1,0 +1,247 @@
+# ======================================================
+# SLMADLS / AdaLogSLM Configuration
+# Few-Shot Target-Adaptive SLM for Log Anomaly Detection
+#
+# Supports:
+#   1) in_domain
+#   2) fewshot_target_adaptation
+#
+# Stages:
+#   train          = train and save model/center/tokenizer
+#   predict        = load saved model and predict
+#   posthoc_only   = run post-hoc calibration on predictions.csv only
+#   train_predict  = train + predict
+# ======================================================
+
+# ======================================================
+# EXPERIMENT
+# ======================================================
+experiment:
+  name: "AdaLogSLM_BGL_To_HDFS_Target20_Both"
+  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
+  stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
+  seed: 42
+  output_dir: "../outputs/AdaLogSLM_BGL_To_HDFS_Target20_Both"
+
+# ======================================================
+# PATHS
+# ======================================================
+paths:
+  data_dir: "datasets"
+  dataset_path_template: "{dataset}/1_{dataset}_Splitted_Datasets"
+
+split_files:
+  train: "train_df.pkl"
+  val: "val_df.pkl"
+  test: "test_df.pkl"
+
+# ======================================================
+# DATA COLUMNS
+# ======================================================
+columns:
+  timestamp: "Timestamp"
+  template: "processed_EventTemplate"
+  block_id: "Node_block_id"
+  label: "Label"
+  dataset: "DatasetName"
+
+# ======================================================
+# LABEL MAPPING
+# ======================================================
+labels:
+  normal_values: [0, "0", "Normal", "normal", "-"]
+  anomaly_values: [1, "1", "Anomaly", "anomaly"]
+
+# ======================================================
+# DATASET MODES
+# ======================================================
+datasets:
+
+  # ----------------------------------------------------
+  # Mode 1: In-domain semi-supervised
+  # Current experiment:
+  #   Train: BGL normal
+  #   Val:   BGL normal
+  #   Test:  BGL normal + BGL anomaly
+  # ----------------------------------------------------
+  in_domain:
+    dataset_name: "SP_150MB_ratio"
+    train_split: "train"
+    val_split: "val"
+    test_split: "test"
+
+    train_normal_only: true
+    val_normal_only: true
+    test_normal_only: false
+
+  # ----------------------------------------------------
+  # Mode 2: Few-shot target adaptation
+  # This section is ignored when mode = "in_domain".
+  # It is kept valid for future cross-dataset runs.
+  # ----------------------------------------------------
+  fewshot_target_adaptation:
+    source_datasets: ["BGL"]
+    source_train_split: "train"
+
+    target_dataset: "HDFS"
+    target_adapt_split: "train"
+    target_val_split: "val"
+    target_test_split: "test"
+
+    # false = target adaptation uses BOTH normal and anomaly sequences
+    # from the target TRAIN split. The fractions below are sampled
+    # independently from each class, preserving the target TRAIN class ratio.
+    target_adapt_normal_only: false
+    target_val_normal_only: true
+    target_test_normal_only: false
+
+    target_adapt_normal_fraction: 0.20
+    target_adapt_anomaly_fraction: 0.20
+
+# ======================================================
+# TEXT / SEQUENCE CONSTRUCTION
+# ======================================================
+text:
+  input_column: "processed_EventTemplate"
+  group_by_column: "Node_block_id"
+  sort_by_timestamp: true
+  event_separator: " [SEP] "
+
+  # Node_block_id is treated as sequence/session/window ID.
+  # The code does NOT create sliding windows here.
+  max_events_per_sequence: 150
+  min_events_per_sequence: 1
+
+  lowercase: false
+  mask_numbers: true
+  mask_ips: true
+  mask_paths: true
+
+# ======================================================
+# SMALL LANGUAGE MODEL
+# ======================================================
+model:
+  student_name: "microsoft/MiniLM-L12-H384-uncased"
+  #student_name: "google-bert/bert-large-uncased"
+  # MiniLM/BERT supports maximum 512 tokens.
+  # Do NOT use 1024 with this model.
+  max_length: 512
+
+  projection_dim: 128
+  dropout: 0.1
+
+  # false = fine-tune SLM backbone + projection head
+  # true  = freeze SLM backbone and train projection head only
+  freeze_backbone: false
+
+# ======================================================
+# TRAINING
+# ======================================================
+training:
+  device: "auto"
+  batch_size:  16
+
+  # Used in fewshot_target_adaptation mode.------------------
+  source_epochs: 5 # 3
+  source_lr: 0.00001  # 0.00002
+
+  target_adapt_epochs: 2
+  target_adapt_lr: 0.00001
+
+  # Used in in_domain mode.-------------------------------
+  in_domain_epochs:  5 # 3
+  in_domain_lr: 0.00001  # 0.00002
+
+  weight_decay: 0.01
+  gradient_clip_norm: 1.0
+  center_loss_weight: 0.05  #0.1
+
+  use_dataset_balanced_sampler: true
+  balance_source_datasets: true
+
+# ======================================================
+# MASKED LANGUAGE MODELING
+# ======================================================
+mlm:
+  enabled: true
+  mlm_probability: 0.15
+
+# ======================================================
+# NORMAL CENTER / MULTI-PROTOTYPE CENTER
+# ======================================================
+normal_center:
+  enabled: true
+
+  # 1  = old behavior: one normal center
+  # >1 = multi-prototype normal centers
+  num_prototypes: 20 #25 #5  #10 #20
+
+  # options: ["kmeans", "random"]
+  prototype_method: "kmeans"
+
+# ======================================================
+# ANOMALY SCORING
+# ======================================================
+hybrid_scoring:
+  enabled: true
+
+  # Final anomaly score:
+  # score = alpha_mlm * per_sample_mlm_loss
+  #       + beta_center * nearest_center_distance
+  alpha_mlm: 0.0
+  beta_center: 1.0
+
+# ======================================================
+# THRESHOLD
+# ======================================================
+threshold:
+  method: "percentile"   # options: ["percentile", "mean_std", "fixed"]
+  percentile: 95.0
+
+prediction_stage:
+  anomaly_threshold: 0.5   # used only if threshold.method = "fixed"
+
+# ======================================================
+# POST-HOC CALIBRATION / GRID SEARCH
+# ======================================================
+posthoc_calibration:
+  enabled: true
+
+  # For BGL in-domain, macro_f1 is usually a good balanced metric.
+  # Options:
+  #   "macro_f1"
+  #   "anomaly_f1"
+  #   "weighted_f1"
+  #   "accuracy"
+  #   "normal_f1"
+  #   "precision_at_recall"
+  selection_metric: "macro_f1" #"anomaly_f1" # "macro_f1"
+
+  # Used only if selection_metric = "precision_at_recall"
+  min_anomaly_recall: 0.80
+
+  # Search alpha/beta values.
+  # beta_center = 1 - alpha_mlm
+  alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
+
+  percentile_values: [30, 35,40,45,50,55,60,65,70,82.5, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
+
+
+  save_grid_results: true
+  grid_results_file: "posthoc_grid_search_results.csv"
+  best_report_file: "posthoc_best_report.txt"
+  best_predictions_file: "posthoc_best_predictions.csv"
+
+# ======================================================
+# EVALUATION / OUTPUTS
+# ======================================================
+evaluation:
+  save_predictions: true
+
+outputs:
+  save_model: true
+  save_tokenizer: true
+  save_config: true
+  save_normal_center: true
+  results_file: "results.json"
+  predictions_file: "predictions.csv"
