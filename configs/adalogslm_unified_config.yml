@@ -17,11 +17,11 @@
 # EXPERIMENT
 # ======================================================
 experiment:
-  name: "AdaLogSLM_BGL_TH_1G"
-  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
+  name: "AdaLogSLM_BGL"
+  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
-  output_dir: "../outputs/AdaLogSLM_AdaLogSLM_BGL_TH_1G_2_source_New"
+  output_dir: "../outputs/AdaLogSLM_AdaLogSLM_BGL_source_New"
 
 # ======================================================
 # PATHS
@@ -65,10 +65,10 @@ datasets:
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
  # in_domain:
- #   dataset_name: "SP_150MB_ratio"
- #   train_split: "train"
- #   val_split: "val"
- #   test_split: "test"
+    dataset_name: "SP_150MB_ratio"
+    train_split: "train"
+    val_split: "val"
+    test_split: "test"
 
  #   train_normal_only: true
  #   val_normal_only: true
@@ -79,21 +79,21 @@ datasets:
   # This section is ignored when mode = "in_domain".
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
-  fewshot_target_adaptation:
-    source_datasets: ["BGL"]
-    source_train_split: "train"
+  #fewshot_target_adaptation:
+    #source_datasets: ["BGL"]
+    #source_train_split: "train"
 
-    target_dataset: "TH_1G"
-    target_adapt_split: "train"
-    target_val_split: "val"
-    target_test_split: "test"
+    #target_dataset: "TH_1G"
+    #target_adapt_split: "train"
+    #target_val_split: "val"
+    #target_test_split: "test"
 
-    target_adapt_normal_only: true
-    target_val_normal_only: true
-    target_test_normal_only: false
+    #target_adapt_normal_only: true
+    #target_val_normal_only: true
+    #target_test_normal_only: false
 
-    target_normal_ratio: 0.20  # 0.20 , 30
-    target_normal_max_samples: null
+    #target_normal_ratio: 0.20  # 0.20 , 30
+    #target_normal_max_samples: null
 
 # ======================================================
 # TEXT / SEQUENCE CONSTRUCTION
