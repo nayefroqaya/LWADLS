@@ -64,7 +64,7 @@ datasets:
   #   Val:   BGL normal
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
- # in_domain:
+  in_domain:
     dataset_name: "SP_150MB_ratio"
     train_split: "train"
     val_split: "val"
