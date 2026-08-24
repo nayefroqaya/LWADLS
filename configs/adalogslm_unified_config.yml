@@ -80,10 +80,10 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["TH_1G","HDFS","BGL"]
+    source_datasets: ["SP_150MB_ratio","HDFS","BGL"]
     source_train_split: "train"
 
-    target_dataset: "SP_150MB_ratio"
+    target_dataset: "TH_1G"
     target_adapt_split: "train"
     target_val_split: "val"
     target_test_split: "test"
