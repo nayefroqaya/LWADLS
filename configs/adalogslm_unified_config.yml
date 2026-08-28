@@ -92,7 +92,7 @@ datasets:
     target_val_normal_only: true
     target_test_normal_only: false
 
-    target_normal_ratio: 0.30 #0.20  # 0.20 , 30
+    target_normal_ratio: 0.10 #0.20  # 0.20 , 30
     target_normal_max_samples: null
 
 # ======================================================
