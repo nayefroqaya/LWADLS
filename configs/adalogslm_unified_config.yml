@@ -80,7 +80,7 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["TH_1G","BGL"]
+    source_datasets: ["TH_1G"]
     source_train_split: "train"
 
     target_dataset: "SP_150MB_ratio"
@@ -219,8 +219,8 @@ posthoc_calibration:
 
   # Search alpha/beta values.
   # beta_center = 1 - alpha_mlm
-  alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
-
+  #alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
+  alpha_mlm_values: [0.00]
   percentile_values: [30, 35,40,45,50,55,60,65,70,82.5, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
 
 
