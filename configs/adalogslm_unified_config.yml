@@ -18,7 +18,7 @@
 # ======================================================
 experiment:
   name: "AdaLogSLM_TH_SP"
-  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
+  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_AdaLogSLM_TH_SP_New"
@@ -64,15 +64,15 @@ datasets:
   #   Val:   BGL normal
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
-  #in_domain:
-  #  dataset_name: "TH_1G"
-  #  train_split: "train"
-  #  val_split: "val"
-  #  test_split: "test"
+  in_domain:
+    dataset_name: "HDFS"
+    train_split: "train"
+    val_split: "val"
+    test_split: "test"
 
- #   train_normal_only: true
- #   val_normal_only: true
- #   test_normal_only: false
+    train_normal_only: true
+    val_normal_only: true
+    test_normal_only: false
 
   # ----------------------------------------------------
   # Mode 2: Few-shot target adaptation
