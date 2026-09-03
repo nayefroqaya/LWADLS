@@ -92,7 +92,7 @@ datasets:
     target_val_normal_only: true
     target_test_normal_only: false
 
-    target_normal_ratio: 0.20 #0.20  # 0.20 , 30
+    target_normal_ratio: 0.01  #0.20 #0.20  # 0.20 , 30
     target_normal_max_samples: null
 
 # ======================================================
@@ -203,7 +203,7 @@ prediction_stage:
 # ======================================================
 posthoc_calibration:
   enabled: true
-  anomaly_fraction : 0.20
+  anomaly_fraction : 0.01 #0.20
   # For BGL in-domain, macro_f1 is usually a good balanced metric.
   # Options:
   #   "macro_f1"
@@ -219,8 +219,8 @@ posthoc_calibration:
 
   # Search alpha/beta values.
   # beta_center = 1 - alpha_mlm
-  #alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
-  alpha_mlm_values: [0.00]
+  alpha_mlm_values: [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20, 0.25,0.30,0.40]
+  #alpha_mlm_values: [0.00]
   percentile_values: [30, 35,40,45,50,55,60,65,70,82.5, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 98.5, 99]
 
 
