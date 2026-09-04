@@ -65,7 +65,7 @@ datasets:
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
   in_domain:
-    dataset_name: "BGL"
+    dataset_name: "HDFS"
     train_split: "train"
     val_split: "val"
     test_split: "test"
@@ -203,7 +203,7 @@ prediction_stage:
 # ======================================================
 posthoc_calibration:
   enabled: true
-  anomaly_fraction : 0.30 #0.20
+  anomaly_fraction : 0.01 #0.20
   # For BGL in-domain, macro_f1 is usually a good balanced metric.
   # Options:
   #   "macro_f1"
