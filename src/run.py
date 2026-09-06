@@ -478,8 +478,8 @@ def predict_in_domain(cfg, config_path: str):
 
     # Default: expose only 20% of each validation class to post-hoc calibration.
     calibration_cfg = cfg.get("posthoc_calibration", {})
-    normal_fraction = float(calibration_cfg.get("normal_fraction", 0.05))
-    anomaly_fraction = float(calibration_cfg.get("anomaly_fraction", 0.05))
+    normal_fraction = float(calibration_cfg.get("normal_fraction", 0.10))
+    anomaly_fraction = float(calibration_cfg.get("anomaly_fraction", 0.10))
 
     print("=" * 80)
     print("[Stage] PREDICT ONLY")
