@@ -89,7 +89,7 @@ datasets:
     target_test_split: "test"
 
     # false = target adaptation uses BOTH normal and anomaly sequences
-    # from the target TRAIN split. The fractions below are sampled
+    # #from the target TRAIN split. The fractions below are sampled
     # independently from each class, preserving the target TRAIN class ratio.
     target_adapt_normal_only: false
     target_val_normal_only: true

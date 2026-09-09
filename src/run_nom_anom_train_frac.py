@@ -68,6 +68,217 @@ def get_center_config(cfg):
     }
 
 
+def build_target_adaptation_set(cfg, mode_cfg, target_dataset: str):
+    """
+    Build the target TRAIN subset used for few-shot cross-domain adaptation.
+
+    Supported cases
+    ---------------
+    NOFS (target_adapt_normal_only=true)
+        Samples only NORMAL target-training sequences. The sampling fraction is
+        read from target_adapt_normal_fraction when present, otherwise from the
+        legacy target_normal_ratio key.
+
+    MLFS (target_adapt_normal_only=false)
+        Samples NORMAL and ANOMALOUS target-training sequences independently.
+        Fractions are controlled by:
+            target_adapt_normal_fraction
+            target_adapt_anomaly_fraction
+
+    Sampling is performed at sequence level and is deterministic under the
+    experiment seed.
+
+    IMPORTANT
+    ---------
+    This helper controls WHICH target-training sequences are exposed during
+    adaptation. The current train_normality() routine still optimizes the same
+    MLM + compactness objective for every sequence; it does not use the binary
+    class label as a discriminative training target.
+    """
+
+    seed = int(cfg["experiment"].get("seed", 42))
+    target_adapt_normal_only = bool(
+        mode_cfg.get("target_adapt_normal_only", True)
+    )
+
+    if target_adapt_normal_only:
+        # --------------------------------------------------
+        # NOFS: normal-only target adaptation
+        # --------------------------------------------------
+        normal_fraction = float(
+            mode_cfg.get(
+                "target_adapt_normal_fraction",
+                mode_cfg.get("target_normal_ratio", 0.20),
+            )
+        )
+
+        if not 0.0 < normal_fraction <= 1.0:
+            raise ValueError(
+                "target_adapt_normal_fraction/target_normal_ratio must be "
+                f"in (0, 1], got {normal_fraction}."
+            )
+
+        target_adapt_df = load_sequences_for_dataset(
+            cfg,
+            dataset=target_dataset,
+            split=mode_cfg["target_adapt_split"],
+            normal_only=True,
+            target_normal_ratio=normal_fraction,
+            target_normal_max_samples=mode_cfg.get(
+                "target_normal_max_samples"
+            ),
+        )
+
+        normal_count = int(
+            (target_adapt_df["label"].astype(int) == 0).sum()
+        )
+        anomaly_count = int(
+            (target_adapt_df["label"].astype(int) != 0).sum()
+        )
+
+        info = {
+            "case": "NOFS",
+            "target_adapt_normal_only": True,
+            "normal_fraction_requested": normal_fraction,
+            "anomaly_fraction_requested": 0.0,
+            "normal_selected": normal_count,
+            "anomaly_selected": anomaly_count,
+            "total_selected": int(len(target_adapt_df)),
+            "seed": seed,
+        }
+
+    else:
+        # --------------------------------------------------
+        # MLFS: mixed normal + anomaly target adaptation
+        # --------------------------------------------------
+        normal_fraction = float(
+            mode_cfg.get("target_adapt_normal_fraction", 0.20)
+        )
+        anomaly_fraction = float(
+            mode_cfg.get("target_adapt_anomaly_fraction", 0.20)
+        )
+
+        if not 0.0 < normal_fraction <= 1.0:
+            raise ValueError(
+                "target_adapt_normal_fraction must be in (0, 1], "
+                f"got {normal_fraction}."
+            )
+
+        if not 0.0 < anomaly_fraction <= 1.0:
+            raise ValueError(
+                "target_adapt_anomaly_fraction must be in (0, 1], "
+                f"got {anomaly_fraction}."
+            )
+
+        # Load the FULL target TRAIN pool so both classes are available.
+        target_pool_df = load_sequences_for_dataset(
+            cfg,
+            dataset=target_dataset,
+            split=mode_cfg["target_adapt_split"],
+            normal_only=False,
+        )
+
+        if "label" not in target_pool_df.columns:
+            raise ValueError(
+                "Target adaptation dataframe must contain a 'label' column."
+            )
+
+        normal_df = target_pool_df[
+            target_pool_df["label"].astype(int) == 0
+        ].copy()
+        anomaly_df = target_pool_df[
+            target_pool_df["label"].astype(int) != 0
+        ].copy()
+
+        if normal_df.empty:
+            raise ValueError(
+                "No normal target-training sequences are available."
+            )
+
+        if anomaly_df.empty:
+            raise ValueError(
+                "No anomalous target-training sequences are available for "
+                "MLFS adaptation."
+            )
+
+        num_normal = max(
+            1,
+            int(round(len(normal_df) * normal_fraction)),
+        )
+        num_anomaly = max(
+            1,
+            int(round(len(anomaly_df) * anomaly_fraction)),
+        )
+
+        num_normal = min(num_normal, len(normal_df))
+        num_anomaly = min(num_anomaly, len(anomaly_df))
+
+        normal_sample_df = normal_df.sample(
+            n=num_normal,
+            replace=False,
+            random_state=seed,
+        ).copy()
+
+        # Different deterministic seed for the anomaly class.
+        anomaly_sample_df = anomaly_df.sample(
+            n=num_anomaly,
+            replace=False,
+            random_state=seed + 1,
+        ).copy()
+
+        target_adapt_df = pd.concat(
+            [normal_sample_df, anomaly_sample_df],
+            ignore_index=True,
+        )
+
+        # Deterministic shuffle so class rows are mixed in the loader input.
+        target_adapt_df = target_adapt_df.sample(
+            frac=1.0,
+            replace=False,
+            random_state=seed,
+        ).reset_index(drop=True)
+
+        info = {
+            "case": "MLFS",
+            "target_adapt_normal_only": False,
+            "normal_fraction_requested": normal_fraction,
+            "anomaly_fraction_requested": anomaly_fraction,
+            "normal_available": int(len(normal_df)),
+            "anomaly_available": int(len(anomaly_df)),
+            "normal_selected": int(num_normal),
+            "anomaly_selected": int(num_anomaly),
+            "total_selected": int(len(target_adapt_df)),
+            "realized_normal_fraction": float(num_normal / len(normal_df)),
+            "realized_anomaly_fraction": float(num_anomaly / len(anomaly_df)),
+            "seed": seed,
+        }
+
+    print("=" * 80)
+    print(f"[Target adaptation case] {info['case']}")
+    print(f"[Target dataset] {target_dataset}")
+    print(
+        f"[Selected normals]   {info['normal_selected']:,}"
+    )
+    print(
+        f"[Selected anomalies] {info['anomaly_selected']:,}"
+    )
+    print(
+        f"[Selected total]     {info['total_selected']:,}"
+    )
+    print(
+        f"[Normal fraction]    "
+        f"{100.0 * info['normal_fraction_requested']:.1f}%"
+    )
+    print(
+        f"[Anomaly fraction]   "
+        f"{100.0 * info['anomaly_fraction_requested']:.1f}%"
+    )
+    print(f"[Sampling seed]      {seed}")
+    print("=" * 80)
+
+    return target_adapt_df, info
+
+
 def build_limited_calibration_set(
     seq_df: pd.DataFrame,
     normal_fraction: float,
@@ -832,7 +1043,9 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
 
     Trains:
         source normal model on source_datasets
-        target adaptation on target normal subset
+        target adaptation using either:
+            - NOFS: a fraction of normal target-training sequences only
+            - MLFS: independent fractions of normal and anomalous target-training sequences
 
     Saves:
         model.pt
@@ -869,13 +1082,10 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         normal_only=True,
     )
 
-    target_adapt_df = load_sequences_for_dataset(
-        cfg,
-        dataset=target_dataset,
-        split=mode_cfg["target_adapt_split"],
-        normal_only=mode_cfg.get("target_adapt_normal_only", True),
-        target_normal_ratio=mode_cfg.get("target_normal_ratio"),
-        target_normal_max_samples=mode_cfg.get("target_normal_max_samples"),
+    target_adapt_df, target_adaptation_info = build_target_adaptation_set(
+        cfg=cfg,
+        mode_cfg=mode_cfg,
+        target_dataset=target_dataset,
     )
 
     target_val_df = load_sequences_for_dataset(
@@ -936,7 +1146,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
         weight_decay=cfg["training"]["weight_decay"],
         center_loss_weight=cfg["training"]["center_loss_weight"],
         gradient_clip_norm=cfg["training"].get("gradient_clip_norm"),
-        stage_name="target-adapt",
+        stage_name=f"target-adapt-{target_adaptation_info['case']}",
     )
 
     center_cfg = get_center_config(cfg)
@@ -969,6 +1179,7 @@ def train_fewshot_target_adaptation(cfg, config_path: str):
             "source_datasets": source_datasets,
             "target_dataset": target_dataset,
             "target_adapt_size": int(len(target_adapt_df)),
+            "target_adaptation_sampling": target_adaptation_info,
             "normal_center": center_cfg,
             "saved_model": str(out_dir / "model.pt"),
             "saved_center": str(out_dir / "target_normal_center.pt"),
