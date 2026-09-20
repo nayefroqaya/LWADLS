@@ -86,8 +86,7 @@ def print_time_summary(runtime_summary: dict):
 # ======================================================
 
 def main():
-
-
+    '''
     # ---------------- Section A  : run config for data spliting (60%-10%-30%):----------------
 
     warnings.filterwarnings('ignore')
@@ -120,6 +119,7 @@ def main():
     train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
                                                                                   Mix_or_stable)
     exit()
+    '''
 
 
     # End of the section A  --------------------------------------------------------------------------------------------
