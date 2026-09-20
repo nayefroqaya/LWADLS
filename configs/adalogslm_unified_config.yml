@@ -18,7 +18,7 @@
 # ======================================================
 experiment:
   name: "AdaLogSLM_TH_SP"
-  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
+  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_AdaLogSLM_TH_SP_New"
@@ -65,7 +65,7 @@ datasets:
   #   Test:  BGL normal + BGL anomaly
   # ----------------------------------------------------
   in_domain:
-    dataset_name: "SP_150MB_ratio"
+    dataset_name: "TH_1G"
     train_split: "train"
     val_split: "val"
     test_split: "test"
@@ -118,8 +118,8 @@ text:
 # SMALL LANGUAGE MODEL
 # ======================================================
 model:
-  student_name: "microsoft/MiniLM-L12-H384-uncased"
-  #student_name: "google-bert/bert-large-uncased"
+  #student_name: "microsoft/MiniLM-L12-H384-uncased"
+  student_name: "google-bert/bert-large-uncased"
   # MiniLM/BERT supports maximum 512 tokens.
   # Do NOT use 1024 with this model.
   max_length: 512
