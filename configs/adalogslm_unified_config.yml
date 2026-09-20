@@ -18,7 +18,7 @@
 # ======================================================
 experiment:
   name: "AdaLogSLM_TH_SP"
-  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
+  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_AdaLogSLM_TH_SP_New"
