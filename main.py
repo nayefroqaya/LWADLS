@@ -32,14 +32,10 @@ if str(PROJECT_ROOT) not in sys.path:
 # ======================================================
 
 from src.config import load_config
-#from src.unsupervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
-#                                  predict_fewshot_target_adaptation, run_posthoc_only, )
-#from src.Supervised_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
-#                                  predict_fewshot_target_adaptation, run_posthoc_only, )
-#from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
-#                          predict_fewshot_target_adaptation, )
-from src.run_nom_anom_train_frac import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+from src.run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
                           predict_fewshot_target_adaptation, )
+#from src.run_nom_anom_train_frac import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
+         #                 predict_fewshot_target_adaptation, )
 #from src.normal_anom_fraction_train_run import (train_in_domain, predict_in_domain, train_fewshot_target_adaptation,
 #                          predict_fewshot_target_adaptation, )
 # ======================================================
@@ -49,10 +45,10 @@ from src.run_nom_anom_train_frac import (train_in_domain, predict_in_domain, tra
 def parse_args():
     parser = argparse.ArgumentParser(description="Run SLMADLS / AdaLogSLM from main.py")
 
-    #parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
-    #                    help="Path to YAML config file.", )
-    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config_anom_norma_fracti_train.yml"),
+    parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config.yml"),
                         help="Path to YAML config file.", )
+    #parser.add_argument("--config", default=str(PROJECT_ROOT / "configs" / "adalogslm_unified_config_anom_norma_fracti_train.yml"),
+    #                    help="Path to YAML config file.", )
     return parser.parse_args()
 
 
@@ -93,7 +89,7 @@ def main():
 
 
     # ---------------- Section A  : run config for data spliting (60%-10%-30%):----------------
-    '''
+
     warnings.filterwarnings('ignore')
     colorama.init()
 
@@ -124,7 +120,7 @@ def main():
     train_df, validate_df, test_df, df_features = utilities_obj.dataset_splitting(ALL_DATASET_CSV_PATH, DATASET, Round,
                                                                                   Mix_or_stable)
     exit()
-    '''
+
 
     # End of the section A  --------------------------------------------------------------------------------------------
 

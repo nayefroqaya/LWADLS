@@ -18,7 +18,7 @@
 # ======================================================
 experiment:
   name: "AdaLogSLM_TH_SP"
-  mode: "in_domain"       # options: ["in_domain", "fewshot_target_adaptation"]
+  mode: "fewshot_target_adaptation"       # options: ["in_domain", "fewshot_target_adaptation"]
   stage: "train_predict"        # options: ["train", "predict", "posthoc_only", "train_predict"]
   seed: 42
   output_dir: "../outputs/AdaLogSLM_AdaLogSLM_TH_SP_New"
@@ -80,7 +80,7 @@ datasets:
   # It is kept valid for future cross-dataset runs.
   # ----------------------------------------------------
   fewshot_target_adaptation:
-    source_datasets: ["TH_1G"]
+    source_datasets: ["TH_1G","BGL"]
     source_train_split: "train"
 
     target_dataset: "SP_150MB_ratio"
@@ -203,7 +203,7 @@ prediction_stage:
 # ======================================================
 posthoc_calibration:
   enabled: true
-  anomaly_fraction : 0.30 #0.20
+  anomaly_fraction : 0.20 #0.20
   # For BGL in-domain, macro_f1 is usually a good balanced metric.
   # Options:
   #   "macro_f1"
