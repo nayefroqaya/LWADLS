@@ -83,7 +83,7 @@ datasets:
     source_datasets: ["TH_1G","BGL"]
     source_train_split: "train"
 
-    target_dataset: "SP_150MB_ratio"
+    target_dataset: "HDFS"
     target_adapt_split: "train"
     target_val_split: "val"
     target_test_split: "test"
