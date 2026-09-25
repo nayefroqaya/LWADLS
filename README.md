@@ -220,10 +220,8 @@ experiment:
 
 ## Running the Code
 Run with the default configuration:
-
-```bash
 python main.py
-```
+
 
 ## Notes
 
