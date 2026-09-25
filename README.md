@@ -54,23 +54,26 @@ A sequence is classified as anomalous if its score is higher than the calibrated
 ## Project Structure
 
 ```text
-├─ datasets/               # Main entry point for LogSLM datasets  
-├─ drain_parser/           # Configuration and parser scripts for Drain  with its references
-├── main.py
-├── requirements.txt
+FSADLS/
+├── datasets/                         # Log datasets and train/validation/test splits
+├── drain_parser/                     # Drain parser and related configuration
 ├── configs/
-│   └── adalogslm_unified_config.yml
+│   ├── fsadls_unified_config.yml
+│   └── fsadls_normal_anomaly_adapt_config.yml
 ├── src/
 │   ├── __init__.py
-│   ├── config.py
-│   ├── data.py
-│   ├── model.py
-│   ├── train.py
-│   ├── losses.py
-│   ├── scoring.py
-│   ├── run.py
-│   └── utils.py
-└── README.md
+│   ├── config.py                     # Configuration management
+│   ├── data.py                       # Dataset loading and preprocessing
+│   ├── model.py                      # SLM architecture
+│   ├── train.py                      # Training and few-shot adaptation
+│   ├── losses.py                     # Training objectives
+│   ├── scoring.py                    # Anomaly scoring and post-hoc calibration
+│   ├── run.py                        # Main FSADLS pipeline
+│   └── utils.py                      # Utility functions
+├── main.py                           # Main entry point
+├── requirements.txt                  # Required Python packages
+├── README.md                         # Documentation
+└── .gitignore
 ```
 
 
