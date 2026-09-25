@@ -177,6 +177,30 @@ Example split files:
 ../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 ```
 
+
+## Running FSADLS
+
+FSADLS supports three main experimental settings:
+
+1. In-domain anomaly detection
+2. Cross-domain adaptation using normal target data only (NOFS)
+3. Cross-domain adaptation using normal and anomalous target data (MLFS)
+
+### 1. Install Dependencies
+
+Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+
+### In-Domain Detection
+```main.py
+src/run.py
+configs/adalogslm_unified_config.yml
+```
+
+
+
 ## Configuration
 
 The main configuration file is:
