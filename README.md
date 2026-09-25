@@ -194,21 +194,14 @@ Install the required Python packages:
 pip install -r requirements.txt
 
 ### In-Domain Detection
-main.py
+main.py # Open the main.py and uncomment import the run.py or run_nom_anom_train_frac.py
 src/run.py
 configs/adalogslm_unified_config.yml
 
-
-
-
-## Configuration
-
-The main configuration file is:
-
+#Configuration: The main configuration file is:
 ```text
 configs/adalogslm_unified_config.yml
 ```
-
 To run in-domain detection:
 
 ```yaml
@@ -217,23 +210,12 @@ experiment:
 ```
 
 To run few-shot target adaptation:
-
 ```yaml
 experiment:
   mode: "fewshot_target_adaptation"
 ```
 
-Supported stages:
-
-```text
-train
-predict
-posthoc_only
-train_predict
-```
-
 Example:
-
 ```yaml
 experiment:
   mode: "fewshot_target_adaptation"
