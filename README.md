@@ -260,11 +260,12 @@ datasets:
 - The held-out test set is used only for final evaluation and is not involved in training, adaptation, or calibration.
 - Post-hoc calibration modifies only the scoring weights and decision threshold; it does not retrain or update the SLM.
 
-## Baslines :
-NovaADLS :    Code: [NovaADLS GitHub repository](https://github.com/nayefroqaya/NovaAD)
-LogAnomaly :  Code: [https://github.com/nayefroqaya/Exper_LOAGAD)
-DeepLog :     Code: [https://github.com/nayefroqaya/Exper_LOAGAD)
-PLELog:       Code: [https://github.com/nayefroqaya/Exper_PLELOG)
-LogRobust:    Code: [https://github.com/nayefroqaya/Exper_LOAGAD)
-LogFormer:    Code: [https://github.com/nayefroqaya/Exper_LogForm)
-NeuralLog:    Code: [https://github.com/nayefroqaya/Exper_LOAGAD)
+## Baselines
+
+- **NovaADLS:** [Code](https://github.com/nayefroqaya/NovaAD)
+- **LogAnomaly:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- **DeepLog:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- **PLELog:** [Code](https://github.com/nayefroqaya/Exper_PLELOG)
+- **LogRobust:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- **LogFormer:** [Code](https://github.com/nayefroqaya/Exper_LogForm)
+- **NeuralLog:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
