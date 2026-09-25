@@ -199,31 +199,26 @@ src/run.py
 configs/adalogslm_unified_config.yml
 
 #Configuration: The main configuration file is:
-```text
 configs/adalogslm_unified_config.yml
-```
-To run in-domain detection:
 
-```yaml
+To run in-domain detection:
+yaml
 experiment:
   mode: "in_domain"
-```
 
 To run few-shot target adaptation:
-```yaml
+yaml
 experiment:
   mode: "fewshot_target_adaptation"
-```
+
 
 Example:
-```yaml
+yaml
 experiment:
   mode: "fewshot_target_adaptation"
   stage: "train_predict"
-```
 
 ## Running the Code
-
 Run with the default configuration:
 
 ```bash
