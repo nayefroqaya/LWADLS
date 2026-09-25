@@ -222,13 +222,42 @@ experiment:
 Run with the default configuration:
 python main.py
 
+### Cross Domain : NOFS
 
-## Notes
+python main.py --config configs/adalogslm_unified_config.yml (Update the imports in the main.py file)
 
-- Training is semi-supervised and uses normal sequences only.
-- Target anomaly labels are not used during few-shot adaptation.
-- Normal validation sequences are used to compute normal prototype(s) and calibrate the anomaly threshold.
-- Test labels are used only for evaluation and offline post-hoc calibration.
-- Post-hoc calibration changes only the scoring weights and threshold; it does not update the model.
+experiment:
+  mode: "fewshot_target_adaptation"
+  stage: "train_predict"
+
+datasets:
+  fewshot_target_adaptation:
+    target_adapt_normal_only: true
+    target_normal_ratio: 0.20
+
+### Cross Domain : MLFS
+
+python main.py --config configs/adalogslm_unified_config_anom_norma_fracti_train.yml
+
+experiment:
+  mode: "fewshot_target_adaptation"
+  stage: "train_predict"
+
+datasets:
+  fewshot_target_adaptation:
+    target_adapt_normal_only: false
+    target_adapt_normal_fraction: 0.20
+    target_adapt_anomaly_fraction: 0.20
+
+
+## Training and Evaluation Protocol
+
+- FSADLS uses semi-supervised normality learning, with the base model trained on normal sequences only.
+- In the NOFS setting, few-shot target adaptation uses only normal target-training sequences; no target anomalies are used.
+- In the MLFS setting, limited normal and anomalous target-training sequences can be exposed during adaptation, but their binary labels are not used as discriminative training targets.
+- Normal validation sequences are used to construct the normal prototype(s) and estimate the initial anomaly threshold.
+- A limited labeled validation subset is used for supervised post-hoc calibration of the anomaly-score weights and decision threshold.
+- The held-out test set is used only for final evaluation and is not involved in training, adaptation, or calibration.
+- Post-hoc calibration modifies only the scoring weights and decision threshold; it does not retrain or update the SLM.
 
 
