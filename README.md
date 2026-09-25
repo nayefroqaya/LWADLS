@@ -88,6 +88,38 @@ We used two open-source log datasets (more will be added in the future):
 | Spirit (SP_150MB)  | Supercomputing system log          | 150 MB    | [Figshare](https://figshare.com/s/6d3c6a83f4828d17be79?file=27775929) |
 
 
+
+
+## Dataset Statistics
+
+| Dataset | Size | Logs | Anomaly Ratio (%) | Blocks | Normal Sequences | Anomalous Sequences |
+|---|---:|---:|---:|---:|---:|---:|
+| Spirit_a (S) | 150 MB | 1,225,059 | 2.6 | 7,590 | 6,266 | 1,324 |
+| BGL (B) | 708.7 MB | 4,747,963 | 7.39 | 84,926 | 49,247 | 36,251 |
+| TH_a (T) | 1 GB | 6,013,029 | 5.04 | 52,333 | 44,732 | 7,601 |
+| HDFS (H) | 1.47 GB | 11,175,629 | 2.5 | 575,071 | 558,223 | 16,838 |
+
+
+## Evaluation Scenarios
+
+B, H, T, and S denote **BGL**, **HDFS**, **TH_a**, and **SP_a**, respectively.  
+1S-CD, 2S-CD, and 3S-CD denote cross-domain transfer from one, two, and three source domains.
+
+| Setting | Scenario | Source → Target |
+|---|---|---|
+| In-domain | B → B | BGL → BGL |
+| In-domain | H → H | HDFS → HDFS |
+| In-domain | T → T | TH_a → TH_a |
+| In-domain | S → S | SP_a → SP_a |
+| 1S-CD | 1S₁ | B → H |
+| 1S-CD | 1S₂ | B → T |
+| 1S-CD | 1S₃ | T → S |
+| 2S-CD | 2S₁ | (B + H) → T |
+| 2S-CD | 2S₂ | (H + T) → B |
+| 2S-CD | 2S₃ | (B + T) → S |
+| 3S-CD | 3S₁ | (B + H + T) → S |
+| 3S-CD | 3S₂ | (B + H + S) → T |
+| 3S-CD | 3S₃ | (H + T + S) → B |
 ---
 
 ## ⚙️ Environment
