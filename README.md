@@ -262,10 +262,10 @@ datasets:
 
 ## Baselines
 
-- **NovaADLS:** [Code](https://github.com/nayefroqaya/NovaAD)
-- **LogAnomaly:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
-- **DeepLog:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
-- **PLELog:** [Code](https://github.com/nayefroqaya/Exper_PLELOG)
-- **LogRobust:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
-- **LogFormer:** [Code](https://github.com/nayefroqaya/Exper_LogForm)
-- **NeuralLog:** [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- NovaADLS: [Code](https://github.com/nayefroqaya/NovaAD)
+- LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- DeepLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
+- LogRobust: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+- LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
+- NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
