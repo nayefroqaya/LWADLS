@@ -1,6 +1,6 @@
-# LogSLM
+# FSADLS
 
-LogSLM is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It fine-tunes a MiniLM-based masked language model on normal log sequences and detects anomalies using a hybrid score that combines masked language modeling loss and distance to normal prototype embeddings.
+FSADLS is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It learns normal log behavior by fine-tuning an SLM on normal log sequences and represents normality through multiple prototype embeddings. During prediction, anomalies are identified using a hybrid score that combines masked language modeling (MLM) loss with the distance to the nearest normal prototype. The framework supports both in-domain detection and few-shot cross-domain adaptation, with optional supervised post-hoc calibration to refine the score weights and decision threshold.
 
 ## Overview
 
@@ -18,29 +18,32 @@ LogSLM supports two main experimental settings:
    - Example: (BGL + HDFS) Training sets → Thunderbird Testing set. (Use Fraction)
    - Example: (BGL + HDFS + Spirit) Training sets → Thunderbird Testing set. (Use Fraction)
 
+The FSADLS framework consists of three main stages:
 
-The framework has three stages:
+1. **Semi-supervised SLM training and few-shot adaptation**  
+   The model learns normal log behavior from normal training sequences and, in cross-domain settings, adapts to the target domain using a limited amount of normal target data.
 
-1. **Semi-supervised SLM training**
-2. **Prediction**
-3. **Post-hoc calibration**
+2. **Prediction and anomaly scoring**  
+   Each log sequence is scored using a combination of MLM loss and nearest-prototype distance.
+
+3. **Supervised post-hoc calibration**  
+   A limited labeled validation subset is used to refine the score weights and decision threshold before final evaluation on the held-out test set.
 
 ## Main Features
 
-- Semi-supervised training using normal sequences only.
-- Fine-tuning of a MiniLM-based masked language model.
-- Center/prototype-based normality modeling.
-- Hybrid anomaly score combining MLM loss and prototype distance.
-- Percentile-based threshold calibration.
-- Optional post-hoc grid search for score weights and thresholds.
-- Support for in-domain and few-shot cross-dataset settings.
-
+- Normal-only semi-supervised SLM training.
+- Fine-tuning of a masked language model for contextual log representation learning.
+- Multi-prototype normality modeling.
+- Hybrid anomaly scoring based on MLM loss and nearest-prototype distance.
+- Percentile-based base threshold estimation from normal validation data.
+- Supervised post-hoc calibration of score weights and decision thresholds using a limited labeled validation subset.
+- Support for both in-domain detection and few-shot cross-domain adaptation.
 ## Method Summary
 
-LogSLM learns normal log behavior from normal sequences only. During prediction, each test sequence receives an anomaly score based on:
+FSADLS learns normal log behavior from normal training sequences. During prediction, each test sequence receives an anomaly score based on:
 
-1. **MLM loss**: token-level irregularity.
-2. **Prototype distance**: representation-level deviation from normal behavior.
+1. **MLM loss**: measures token-level irregularity in the log sequence.
+2. **Nearest-prototype distance**: measures representation-level deviation from learned normal behavior.
 
 The anomaly score is computed as:
 
