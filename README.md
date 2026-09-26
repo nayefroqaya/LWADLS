@@ -188,7 +188,6 @@ FSADLS supports three main experimental settings:
 
 ### Install Dependencies and un the experiments 
 
-Install the required Python packages:
 
 pip install -r requirements.txt
 
