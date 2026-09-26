@@ -260,7 +260,6 @@ datasets:
 
 ## Baselines - Re-implemented
 
-- NovaADLS: [Code](https://github.com/nayefroqaya/NovaAD)
 - LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
 - DeepLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
