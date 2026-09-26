@@ -186,11 +186,10 @@ FSADLS supports three main experimental settings:
 2. Cross-domain adaptation using normal target data only (NOFS)
 3. Cross-domain adaptation using normal and anomalous target data (MLFS)
 
-### Install Dependencies
+### Install Dependencies and un the experiments 
 
 Install the required Python packages:
 
-```bash
 pip install -r requirements.txt
 
 ### In-Domain Detection
@@ -222,7 +221,7 @@ experiment:
 Run with the default configuration:
 python main.py
 
-### Cross Domain : NOFS
+### Cross Domain Detection: NOFS
 
 python main.py --config configs/adalogslm_unified_config.yml (Update the imports in the main.py file)
 
@@ -235,7 +234,7 @@ datasets:
     target_adapt_normal_only: true
     target_normal_ratio: 0.20
 
-### Cross Domain : MLFS
+### Cross Domain Detection: MLFS
 
 python main.py --config configs/adalogslm_unified_config_anom_norma_fracti_train.yml
 
