@@ -266,3 +266,13 @@ datasets:
 - LogRobust: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
 - NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD)
+
+
+## 📬 Contact
+We are happy to answer your questions:   
+
+| Name               | Email Address                             |
+|--------------------|-------------------------------------------|
+| Nayef Roqaya       | roqaya@staff.uni-marburg.de               |
+| Thorsten Papenbrock| papenbrock@informatik.uni-marburg.de      |
+
