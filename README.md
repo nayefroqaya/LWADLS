@@ -176,7 +176,7 @@ Example split files:
 ../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
 ../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
-datasets is the folder of the datasets. BG is the name if the dataset we use. 1_BGL_Splitted_Datasets is came from the first run (1). 
+datasets is the name of the folder of the datasets. For example: BG is the name of the dataset we use. 1_BGL_Splitted_Datasets is a folder. This folder include the PKL files which we generated  from (Preparation - Parsing step) and (Preparation - Data Splitting  step) sections.
 ```
 
 
@@ -261,6 +261,8 @@ datasets:
 - Post-hoc calibration modifies only the scoring weights and decision threshold; it does not retrain or update the SLM.
 
 ## Baselines - Re-implemented
+
+These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside the BGL folder, we have  
 
 - LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
 - DeepLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
