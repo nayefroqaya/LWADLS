@@ -1,4 +1,4 @@
-###🟢 FSADLS
+### FSADLS
 
 FSADLS is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It learns normal log behavior by fine-tuning an SLM on normal log sequences and represents normality through multiple prototype embeddings. During prediction, anomalies are identified using a hybrid score that combines masked language modeling (MLM) loss with the distance to the nearest normal prototype. The framework supports both in-domain detection and few-shot cross-domain adaptation, with optional supervised post-hoc calibration to refine the score weights and decision threshold.
 
