@@ -156,7 +156,7 @@ Steps to run LogSLM:
 
 The input data should be provided as preprocessed `.pkl` or `.csv` split files.
 
-The required columns are configured in the YAML file:
+The required columns are configured in the YAML file root/configs/ filename.yml:
 
 ```yaml
 columns:
@@ -175,6 +175,8 @@ Example split files:
 ../datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
 ../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
 ../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
+
+datasets is the folder of the datasets. BG is the name if the dataset we use. 1_BGL_Splitted_Datasets is came from the first run (1). 
 ```
 
 
