@@ -176,7 +176,7 @@ Example split files:
 ../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
 ../datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
-datasets is the name of the folder of the datasets. For example: BG is the name of the dataset we use. 1_BGL_Splitted_Datasets is a folder. This folder include the PKL files which we generated  from (Preparation - Parsing step) and (Preparation - Data Splitting  step) sections.
+'datasets' is the name of the folder. For example: BGL is the name of the dataset we use. 1_BGL_Splitted_Datasets is a folder which includes the PKL files that we generated  from (Preparation - Parsing step) and (Preparation - Data Splitting  step) sections.
 ```
 
 
