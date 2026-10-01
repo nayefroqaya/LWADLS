@@ -264,10 +264,11 @@ datasets:
 ## Baselines - Re-implemented
 
 These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside BGL, you can see :
-BGL/1_BGL_Splitted_Datasets/train_df.pkl
-BGL/1_BGL_Splitted_Datasets/val_df.pkl
-BGL/1_BGL_Splitted_Datasets/test_df.pkl
+- BGL/1_BGL_Splitted_Datasets/train_df.pkl
+- GL/1_BGL_Splitted_Datasets/val_df.pkl
+- BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
+#---------
 - LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
 - DeepLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
