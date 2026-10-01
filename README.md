@@ -275,7 +275,8 @@ From the main forder of each baseline, you should read the datasets folder in ou
 - LogRobust: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
 - NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
   
-In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog:
+In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog. For Example: 
+
     file_path_train = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
     file_path_test = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
     file_path_val = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
