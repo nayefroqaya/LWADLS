@@ -276,7 +276,6 @@ From the main forder of each baseline, you should read the datasets folder in ou
 - NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
   
 In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog:
-    # Third paper path data 
     file_path_train = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
     file_path_test = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
     file_path_val = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
@@ -284,13 +283,11 @@ In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, Lo
  
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
-  # paper path data 
   ../../LWADLS/datasets is in the approaches/file.py
 
   
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
-In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets.
-For example:
+In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For example:
 
     - train_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
     - val_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
