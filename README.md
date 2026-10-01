@@ -131,7 +131,7 @@ pip install -r requirements.txt
 
 ---
 ## 🛠️ Preparation - Parsing step:
-Steps to run LogSLM:
+Steps to run FSADLS:
 
 1. Install all required libraries from the requirements file (e.g., Main path/requirements.txt).
 2. Create a dataset directory under `datasets` (e.g., `HDFS`, `BGL`,`TH_1G`, `SP_150MB`) and upload the (datasetname.log) to this directory.
