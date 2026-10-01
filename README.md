@@ -181,7 +181,7 @@ Example split files:
 ```
 
 
-## Running FSADLS
+## Running FSADLS Experiments 
 
 FSADLS supports three main experimental settings:
 
@@ -189,8 +189,7 @@ FSADLS supports three main experimental settings:
 2. Cross-domain adaptation using normal target data only (NOFS)
 3. Cross-domain adaptation using normal and anomalous target data (MLFS)
 
-### Install Dependencies and un the experiments 
-
+### Install Dependencies and run the experiments 
 
 pip install -r requirements.txt
 
@@ -276,7 +275,7 @@ From the main forder of each baseline, you should read the datasets folder in ou
 - LogRobust: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
 - NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
   
-In ther file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog:
+In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog:
     # Third paper path data 
     file_path_train = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
     file_path_test = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
@@ -285,12 +284,17 @@ In ther file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, L
  
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
-  # Third paper path data 
-  ../../LWADLS/datasets
+  # paper path data 
+  ../../LWADLS/datasets is in the approaches/file.py
 
   
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
-In Exper_LogForm/preprocess you can find all path fo all datasets.
+In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets.
+For example:
+
+    - train_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
+    - val_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
+    - test_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
 
 ## 📬 Contact
