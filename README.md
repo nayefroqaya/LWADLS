@@ -54,7 +54,7 @@ A sequence is classified as anomalous if its score is higher than the calibrated
 ## Project Structure
 
 ```text
-FSADLS/
+LWADLS/
 ├── datasets/                         # Log datasets and train/validation/test splits
 ├── drain_parser/                     # Drain parser and related configuration
 ├── configs/
@@ -277,7 +277,7 @@ From the main forder of each baseline, you should read the datasets folder in ou
 - NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
   
 In ther file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog:
-    # Third paper
+    # Third paper path data 
     file_path_train = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
     file_path_test = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
     file_path_val = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
@@ -285,8 +285,12 @@ In ther file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, L
  
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
+  # Third paper path data 
+  ../../LWADLS/datasets
+
   
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
+In Exper_LogForm/preprocess you can find all path fo all datasets.
 
 
 ## 📬 Contact
