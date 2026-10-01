@@ -148,8 +148,8 @@ Steps to run LogSLM:
 ## 🛠️ Preparation - Data Splitting  step:
 
 1. After the parsing, we run load_datalog.py
-2. In main.py: uncomment Section A and run the file. The results will be  60%, 10%, 30% splits as PKL files.
-3. In main.py: comment the Section A and run the file. This is start point of the pipeline.
+2. In main.py: uncomment Section A and run the file: python main.py. The results will be  60%, 10%, 30% splits as PKL files.
+3. In main.py: comment the Section A and run the file: python main.py. This is start point of the pipeline.
 
 
 ## Data Format
