@@ -277,22 +277,22 @@ These approaches should read the data from our data path : For example : FSADLS/
   
 In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog. For Example: 
 
-    file_path_train = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
-    file_path_test = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
-    file_path_val = '../LWADLS/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
+    file_path_train = '../root forlder/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/train_df.pkl'
+    file_path_test = '../root forlder/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
+    file_path_val = '../root forlder/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
 
  
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
-  ../../LWADLS/datasets is in the approaches/file.py
+  ../../root forlder/datasets is in the approaches/file.py
 
   
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
 In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For example:
 
-    - train_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
-    - val_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
-    - test_pkl: /storage/home/system name/LWADLS/datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
+    - train_pkl: /storage/home/system name/root forlder/datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
+    - val_pkl: /storage/home/system name/root forlder/datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
+    - test_pkl: /storage/home/system name/root forlder/datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
 
 ## 📬 Contact
