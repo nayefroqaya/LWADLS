@@ -377,7 +377,7 @@ In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For 
     - test_pkl: /storage/home/system name/root forlder/datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
  
 #####======================================X
-##### Cross-dataset supervised LogFormer: BGL -> HDFS. LogFormer
+##### Cross-dataset supervised LogFormer: i.e. BGL -> HDFS. LogFormer
 #####======================================X
 
 ##### Normakl + anomaly in train - LogFormer
