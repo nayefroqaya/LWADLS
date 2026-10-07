@@ -376,10 +376,10 @@ In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For 
     - test_pkl: /storage/home/system name/root forlder/datasets/BGL/1_BGL_Splitted_Datasets/test_df.pkl
  
 #####======================================X
-##### Cross-dataset supervised LogFormer: BGL -> HDFS
+##### Cross-dataset supervised LogFormer: BGL -> HDFS. LogFormer
 #####======================================X
 
-##### Normakl + anomaly in train 
+##### Normakl + anomaly in train - LogFormer
 
 In yml file : setting: cross_dataset
 
@@ -387,12 +387,12 @@ python preprocess/preprocess_normalandanomaly_dataset_selector_from_config_no_ov
   --config preprocess/config_cross_dataset_last.yml
 
 
-##### 2. Pre-train LogFormer on SOURCE BGL only
+##### 2. Pre-train LogFormer on SOURCE BGL only - LogFormer
 python Fraktion_normaandanomal_train_transformer_pkl_ready_last.py \
   --config preprocess/config_cross_dataset_last.yml
 
 
-##### 3. Tune the pretrained BGL model on TARGET HDFS
+##### 3. Tune the pretrained BGL model on TARGET HDFS - LogFormer
 #####    Uses the configured fraction of HDFS train:
 #####    normal + anomaly
 python Frackition_normalandanomal_tune_transformer_pkl_ready_last.py \
@@ -400,7 +400,7 @@ python Frackition_normalandanomal_tune_transformer_pkl_ready_last.py \
 
 ###------
 
-##### Only Normal : 
+##### Only Normal : - LogFormer
 In yml file : setting: cross_dataset
 python preprocess/preprocess_only_normal_dataset_selector_from_config_no_overlap_last.py \
   --config preprocess/config_only_normal_cross_dataset_last.yml
@@ -413,7 +413,7 @@ python Frackition_only_normal_tune_transformer_pkl_ready_last.py \
   --config preprocess/config_only_normal_cross_dataset_last.yml
 
 
-##### In domain  : 
+##### In domain  : LogFormer
 - From YML file : setting =  in_domain
 python preprocess/preprocess_only_normal_dataset_selector_from_config_no_overlap_last.py \
   --config preprocess/config_only_normal_cross_dataset_last.yml
