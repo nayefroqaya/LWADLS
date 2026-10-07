@@ -360,7 +360,7 @@ python main_run.py --config_file config/neurallog.yml
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
 - Set the path to data folder. default='../../root folder/datasets'
 - go to approaches folder.
-- Open the file : PLELog_in_domain_20_normal_anomaly.py
+- Open the file : PLELog_in_domain.py
 - Target data :argparser.add_argument('--dataset', default='BGL', type=str)  # One one dataset in domain 
 - Set default to in_domain : argparser.add_argument('--case', default='in_domain', type=str, choices=['in_domain', 'cross_dataset'])
 - run : PLELog_in_domain.py
