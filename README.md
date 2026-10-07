@@ -260,7 +260,7 @@ datasets:
 - The held-out test set is used only for final evaluation and is not involved in training, adaptation, or calibration.
 - Post-hoc calibration modifies only the scoring weights and decision threshold; it does not retrain or update the SLM.
 
-## Baselines - Re-implemented
+## Baselines - Re-producied 
 
 These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside BGL, you can see :
 - BGL/1_BGL_Splitted_Datasets/train_df.pkl
