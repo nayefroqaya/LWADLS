@@ -267,7 +267,7 @@ These approaches should read the data from our data path : For example : FSADLS/
 - BGL/1_BGL_Splitted_Datasets/val_df.pkl
 - BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
-
+===========================================================================================================X
 #From the main forder of each baseline, you should read the datasets folder in our project directory.
 
 - LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
@@ -281,12 +281,93 @@ In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, Lo
     file_path_test = '../root forlder/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/test_df.pkl'
     file_path_val = '../root forlder/datasets/SP_150MB_ratio/1_SP_150MB_ratio_Splitted_Datasets/val_df.pkl'
 
- 
+ + generate embeddings for log templates
+ $ python generate_embeddings.py <dataset> <strategy>
+ where <dataset> is one of {HDFS, BGL, Thunderbird, or Spirit} and <strategy> is one of {average or tfidf}
+
+We have three run for each method: 
+
+- Cross domain (20% Normal data )
+- Cross domain (20% Normal data + 20% Anomaly data )
+- In domain. 
+From yml file, we can decide source_datasets and Target dataset.
+
+##### DeepLog : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) : 
+python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
+ - Cross domain (20% Normal data ):
+python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
+ - In domain : 
+python main_run.py --config_file config/deeplog.yml
+
+
+##### LogAnomaly : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) : 
+python main_run.py --config_file config/loganomaly_cross_20_normal_anomaly.yml
+ - Cross domain (20% Normal data ):
+python main_run.py --config_file config/loganomaly_cross_20_normal_only.yml
+ - In domain : 
+python main_run.py --config_file config/loganomaly.yml
+
+##### Logrobust : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) : 
+python main_run.py --config_file config/logrobust_cross_20_normal_anomaly.yml
+ - Cross domain (20% Normal data ):
+python main_run.py --config_file config/logrobust_cross_20_normal_only.yml
+ - In domain : 
+python main_run.py --config_file config/Logrobust.yml
+
+
+##### NeuralLog : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) : 
+python main_run.py --config_file config/neurallog_cross_20_normal_anomaly.yml
+ - Cross domain (20% Normal data ):
+python main_run.py --config_file config/neurallog_cross_20_normal_only.yml
+ - In domain : 
+python main_run.py --config_file config/neurallog.yml
+
+
+===========================================================================================================X
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
   ../../root forlder/datasets is in the approaches/file.py
 
+  ##### Cross domain (20% Normal only for training) - PLELog
+- With assumption you run the log parser in proposed paper code, our PKL files are ready. 
+- Set the path to data folder. 
+- go to approaches folder.
+- Open the file : PLELog_cross_20_only_normal.py
+- Set the SOURCE_DATASETS : e.g - ["TH_1G"]
+- Target data :argparser.add_argument('--dataset', default='BGL', type=str)  
+- Set default to cross_dataset : argparser.add_argument('--case', default='cross_dataset', type=str, choices=['in_domain', 'cross_dataset'])
+
+- run : ### python PLELog_cross_20_only_normal.py
+
+
+##### Cross domain (20% Normal + 20% Anomaly  for training)- PLELog
+- With assumption you run the log parser in proposed paper code, our PKL files are ready. 
+- Set the path to data folder. default='../../LWADLS/datasets'
+- go to approaches folder.
+- Open the file : PLELog_cross_20_normal_anomaly.py
+- Set the SOURCE_DATASETS : e.g - ["TH_1G"]
+- Target data :argparser.add_argument('--dataset', default='BGL', type=str)  
+- Set default to cross_dataset : argparser.add_argument('--case', default='cross_dataset', type=str, choices=['in_domain', 'cross_dataset'])
+- run : python PLELog_cross_20_normal_anomaly.py
+
+
+##### In domain :- PLELog
+- With assumption you run the log parser in proposed paper code, our PKL files are ready. 
+- Set the path to data folder. default='../../LWADLS/datasets'
+- go to approaches folder.
+- Open the file : PLELog_in_domain_20_normal_anomaly.py
+- Target data :argparser.add_argument('--dataset', default='BGL', type=str)  # One one dataset in domain 
+- Set default to in_domain : argparser.add_argument('--case', default='in_domain', type=str, choices=['in_domain', 'cross_dataset'])
+- run : python PLELog_in_domain_20_normal_anomaly.py
+
   
+
+ ===========================================================================================================X
+ 
 - LogFormer: [Code](https://github.com/nayefroqaya/Exper_LogForm)
 In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For example:
 
