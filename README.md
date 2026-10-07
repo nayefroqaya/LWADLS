@@ -170,7 +170,7 @@ columns:
 Log events are grouped by `Node_block_id` to form log sequences. Event templates are sorted by timestamp, concatenated using `[SEP]`, and then tokenized before being passed to the SLM.
 
 Example split files:
-
+First run with Round =1 
 ```text
 ../datasets/BGL/1_BGL_Splitted_Datasets/train_df.pkl
 ../datasets/BGL/1_BGL_Splitted_Datasets/val_df.pkl
