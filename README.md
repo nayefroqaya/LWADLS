@@ -346,7 +346,7 @@ python main_run.py --config_file config/neurallog.yml
 
 ##### Cross domain (20% Normal + 20% Anomaly  for training)- PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
-- Set the path to data folder. default='../../LWADLS/datasets'
+- Set the path to data folder. default='../../root folder/datasets'
 - go to approaches folder.
 - Open the file : PLELog_cross_20_normal_anomaly.py
 - Set the SOURCE_DATASETS : e.g - ["TH_1G"]
@@ -357,7 +357,7 @@ python main_run.py --config_file config/neurallog.yml
 
 ##### In domain :- PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
-- Set the path to data folder. default='../../LWADLS/datasets'
+- Set the path to data folder. default='../../root folder/datasets'
 - go to approaches folder.
 - Open the file : PLELog_in_domain_20_normal_anomaly.py
 - Target data :argparser.add_argument('--dataset', default='BGL', type=str)  # One one dataset in domain 
