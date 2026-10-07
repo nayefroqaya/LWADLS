@@ -363,7 +363,7 @@ python main_run.py --config_file config/neurallog.yml
 - Open the file : PLELog_in_domain_20_normal_anomaly.py
 - Target data :argparser.add_argument('--dataset', default='BGL', type=str)  # One one dataset in domain 
 - Set default to in_domain : argparser.add_argument('--case', default='in_domain', type=str, choices=['in_domain', 'cross_dataset'])
-- run : python PLELog_in_domain_20_normal_anomaly.py
+- run : PLELog_in_domain.py
 
   
 
