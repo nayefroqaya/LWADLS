@@ -99,10 +99,7 @@ In cross-domain experiments, the target-domain adaptation mode can be:
 
 ### 1. Install Dependencies
 
-From the repository root:
-
-
-pip install -r requirements.txt
+From the repository root: pip install -r requirements.txt
 
 
 ## 🛠️ Preparation - Parsing step:
