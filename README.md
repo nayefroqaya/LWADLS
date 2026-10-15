@@ -192,7 +192,7 @@ FSADLS supports three main experimental settings:
 
 ### Install Dependencies and run the experiments 
 
-pip install -r requirements.txt
+### pip install -r requirements.txt
 =======
 ## Running Experiments
 
@@ -289,14 +289,6 @@ We have three run for each method:
 - In domain. 
 From yml file, we can decide source_datasets and Target dataset.
 
-##### DeepLog : 
- - Cross domain (20% Normal data + 20% Anomaly data ) : 
-python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
- - Cross domain (20% Normal data ):
-python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
- - In domain : 
-python main_run.py --config_file config/deeplog.yml
-=======
 ## Baseline Implementations
 
 | Baseline | Implementation |
@@ -308,6 +300,15 @@ python main_run.py --config_file config/deeplog.yml
 | PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
 | LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
 
+
+##### DeepLog : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) : 
+python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
+ - Cross domain (20% Normal data ):
+python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
+ - In domain : 
+python main_run.py --config_file config/deeplog.yml
+=======
 
 ##### LogAnomaly : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
