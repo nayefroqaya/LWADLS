@@ -256,6 +256,15 @@ datasets:
  
 ## Baselines - Re-reproduced
 
+| Baseline | Implementation |
+|---|---|
+| DeepLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| LogAnomaly | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| LogRobust | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| NeuralLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
+| LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
+
 These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside BGL, you can see :
 - BGL/1_BGL_Splitted_Datasets/train_df.pkl
 - BGL/1_BGL_Splitted_Datasets/val_df.pkl
@@ -286,18 +295,6 @@ We have three run for each method:
 - Cross domain (20% Normal data + 20% Anomaly data )
 - In domain. 
 From yml file, we can decide source_datasets and Target dataset.
-
-## Baseline Implementations
-
-| Baseline | Implementation |
-|---|---|
-| DeepLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
-| LogAnomaly | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
-| LogRobust | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
-| NeuralLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
-| PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
-| LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
-
 
 ##### DeepLog : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
