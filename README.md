@@ -253,7 +253,6 @@ datasets:
 - A limited labeled validation subset (normal and anoamly) can calibrate the anomaly-score weights and decision threshold.
 - The held-out test set is reserved for final evaluation and is not used for training, adaptation, or calibration.
 
- 
 ## Baselines - Re-reproduced
 
 | Baseline | Implementation |
@@ -271,13 +270,6 @@ These approaches should read the data from our data path : For example : FSADLS/
 - BGL/1_BGL_Splitted_Datasets/test_df.pkl
 
 ##======================================X
-
-#From the main forder of each baseline, you should read the datasets folder in our project directory.
-
-- LogAnomaly: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
-- DeepLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
-- LogRobust: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
-- NeuralLog: [Code](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months)
   
 In the file Main_run.py, there are the paths to data for LogAnomaly, Deeplog, LogRobust and NeuralLog. For Example: 
 
