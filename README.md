@@ -8,14 +8,14 @@
 
 The framework comprises three stages:
 
-1. ** (Semi-Supervised)Normality learning and adaptation.** Fine-tune an SLM on normal training sequences. For cross-domain experiments, optionally adapt using a limited fraction of target-domain sequences.
+1. **(Semi-Supervised)Normality learning and adaptation.** Fine-tune an SLM on normal training sequences. For cross-domain experiments, optionally adapt using a limited fraction of target-domain sequences.
 2. **Anomaly scoring.** Combine MLM loss and distance to the nearest learned normal prototype:
 
    $$
    s(x) = \alpha\,\mathcal{L}_{\mathrm{MLM}}(x) + \beta\,d_{\mathrm{nearest\ prototype}}(x)
    $$
 
-3. ** (Supervised)Post-hoc calibration.** Estimate a base threshold using normal validation data; refine the scoring weights and threshold on a small labeled validation subset. A sequence is predicted anomalous when its score exceeds the selected threshold. Calibration changes the scoring rule, **not** the SLM parameters.
+3. **(Supervised)Post-hoc calibration.** Estimate a base threshold using normal validation data; refine the scoring weights and threshold on a small labeled validation subset. A sequence is predicted anomalous when its score exceeds the selected threshold. Calibration changes the scoring rule, **not** the SLM parameters.
 
 ## Repository Structure
 
