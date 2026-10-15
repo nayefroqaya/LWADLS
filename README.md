@@ -15,9 +15,7 @@ The framework comprises three stages:
    s(x) = \alpha\,\mathcal{L}_{\mathrm{MLM}}(x) + \beta\,d_{\mathrm{nearest\ prototype}}(x)
    $$
 
-3. **Supervised Post-hoc calibration.** Estimate a base threshold using normal validation data; refine the scoring weights and threshold on a small labeled validation subset. A sequence is predicted anomalous when its score exceeds the selected threshold.
-
-Calibration changes the scoring rule, **not** the SLM parameters.
+3. **Supervised Post-hoc calibration.** Estimate a base threshold using normal validation data; refine the scoring weights and threshold on a small labeled validation subset. A sequence is predicted anomalous when its score exceeds the selected threshold. Calibration changes the scoring rule, **not** the SLM parameters.
 
 ## Repository Structure
 
