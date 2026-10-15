@@ -101,11 +101,10 @@ In cross-domain experiments, the target-domain adaptation mode can be:
 
 From the repository root:
 
-```bash
-pip install -r requirements.txt
-```
 
----
+pip install -r requirements.txt
+
+
 ## 🛠️ Preparation - Parsing step:
 Steps to run FSADLS:
 
