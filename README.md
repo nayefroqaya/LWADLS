@@ -1,6 +1,4 @@
 
-### FSADLS
-=======
 # FSADLS: Few-Shot and Semi-Supervised Log Anomaly Detection
 
 
