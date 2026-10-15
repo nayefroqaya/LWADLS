@@ -308,9 +308,7 @@ python main_run.py --config_file config/deeplog.yml
 | PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
 | LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
 
-## Contact
 
-<<<<<<< HEAD
 ##### LogAnomaly : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
 python main_run.py --config_file config/loganomaly_cross_20_normal_anomaly.yml
