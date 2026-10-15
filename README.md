@@ -255,7 +255,7 @@ datasets:
 - A limited labeled validation subset can calibrate the anomaly-score weights and decision threshold.
 - The held-out test set is reserved for final evaluation and is not used for training, adaptation, or calibration.
 
-<<<<<<< HEAD
+ 
 ## Baselines - Re-reproduced
 
 These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside BGL, you can see :
