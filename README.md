@@ -443,8 +443,4 @@ We are happy to answer your questions:
 | Nayef Roqaya       | roqaya@staff.uni-marburg.de               |
 | Thorsten Papenbrock| papenbrock@informatik.uni-marburg.de      |
 =======
-For questions about the implementation or experimental protocol:
-| Name | Email |
-|---|---|
-| Nayef Roqaya | [roqaya@staff.uni-marburg.de](mailto:roqaya@staff.uni-marburg.de) |
-| Thorsten Papenbrock | [papenbrock@informatik.uni-marburg.de](mailto:papenbrock@informatik.uni-marburg.de) |
+
