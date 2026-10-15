@@ -249,8 +249,8 @@ datasets:
 - The base SLM is trained on normal training sequences.
 - NOFS adaptation uses normal target training sequences only.
 - MLFS adaptation can expose limited normal and anomalous target training sequences, without using binary anomaly labels as discriminative SLM training targets.
-- Normal validation sequences support normality-prototype construction and initial threshold estimation.
-- A limited labeled validation subset can calibrate the anomaly-score weights and decision threshold.
+- Normal validation sequences (normal only) support normality-prototype construction and initial threshold estimation.
+- A limited labeled validation subset (normal and anoamly) can calibrate the anomaly-score weights and decision threshold.
 - The held-out test set is reserved for final evaluation and is not used for training, adaptation, or calibration.
 
  
