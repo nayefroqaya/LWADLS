@@ -442,5 +442,4 @@ We are happy to answer your questions:
 |--------------------|-------------------------------------------|
 | Nayef Roqaya       | roqaya@staff.uni-marburg.de               |
 | Thorsten Papenbrock| papenbrock@informatik.uni-marburg.de      |
-=======
 
