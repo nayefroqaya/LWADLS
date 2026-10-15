@@ -136,7 +136,6 @@ Create a dataset folder, such as `datasets/BGL/`, and place its raw `.log` file 
    ```bash
    python drain_parser/demo.py
    ```
->>>>>>> 6eaf3cc (Update ERADLS project)
 
 The parser writes structured CSV output to the dataset directory.
 
@@ -144,9 +143,8 @@ The parser writes structured CSV output to the dataset directory.
 
 The preprocessing pipeline uses `load_datalog.py` and **Section A** of `main.py`:
 
-<<<<<<< HEAD
 The required columns are configured in the YAML file root/configs/ filename.yml:
-=======
+
 1. Enable Section A in `main.py` and execute `python main.py` to prepare the data.
 2. The resulting split is **60% training, 10% validation, and 30% testing**, saved as pickle files.
 3. Disable Section A before running model experiments.
