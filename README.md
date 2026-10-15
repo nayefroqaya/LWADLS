@@ -288,7 +288,7 @@ We have three run for each method:
 - In domain. 
 From yml file, we can decide source_datasets and Target dataset.
 
-##### DeepLog : 
+##### **DeepLog** : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
 python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
  - Cross domain (20% Normal data ):
