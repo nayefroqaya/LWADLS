@@ -169,7 +169,7 @@ columns:
 
 Log events are grouped into sequences using `Node_block_id`, ordered by timestamp, joined using `[SEP]`, and tokenized for the SLM. The precise grouping procedure depends on the preprocessing configuration.
 
-<<<<<<< HEAD
+ 
 Example split files:
 First run with Round =1 
 ```text
