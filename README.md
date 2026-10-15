@@ -324,6 +324,7 @@ python main_run.py --config_file config/neurallog.yml
 
 
 ##======================================X
+##### PLELog : 
 - PLELog: [Code](https://github.com/nayefroqaya/Exper_PLELOG)
 
   ../../root forlder/datasets is in the approaches/file.py
@@ -349,8 +350,6 @@ python main_run.py --config_file config/neurallog.yml
 - Target data :argparser.add_argument('--dataset', default='BGL', type=str)  
 - Set default to cross_dataset : argparser.add_argument('--case', default='cross_dataset', type=str, choices=['in_domain', 'cross_dataset'])
 - run : python PLELog_cross_20_normal_anomaly.py
-
-##### PLELog : 
 
 ##### In domain :- PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
