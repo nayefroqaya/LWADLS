@@ -1,116 +1,89 @@
+<<<<<<< HEAD
 ### FSADLS
+=======
+# FSADLS: Few-Shot and Semi-Supervised Log Anomaly Detection
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
-FSADLS is a lightweight semi-supervised Small Language Model (SLM) framework for log anomaly detection. It learns normal log behavior by fine-tuning an SLM on normal log sequences and represents normality through multiple prototype embeddings. During prediction, anomalies are identified using a hybrid score that combines masked language modeling (MLM) loss with the distance to the nearest normal prototype. The framework supports both in-domain detection and few-shot cross-domain adaptation, with optional supervised post-hoc calibration to refine the score weights and decision threshold.
+**FSADLS** is a lightweight, semi-supervised framework for system-log anomaly detection using a small language model (SLM). It learns representations of normal log behavior through masked language modeling and multiple normality prototypes. At inference time, it combines masked language modeling (MLM) loss and distance to the nearest normal prototype to identify anomalous sequences. The framework supports in-domain detection and few-shot cross-domain adaptation, with optional supervised post-hoc calibration of score weights and the decision threshold.
 
-## Overview
+## Method Overview
 
-FSADLS supports two main experimental settings:
+The framework comprises three stages:
 
-1. **In-domain anomaly detection**
-   - Train and test on the same dataset.
-   - Example: BGL Training set → BGL Testing set.
+1. **Normality learning and adaptation.** Fine-tune an SLM on normal training sequences. For cross-domain experiments, optionally adapt using a limited fraction of target-domain sequences.
+2. **Anomaly scoring.** Combine MLM loss and distance to the nearest learned normal prototype:
 
-2. **Few-shot target adaptation**
-   - Train on normal sequences from one or more source datasets.
-   - Adapt using a small number of normal target-domain sequences.
-   - Evaluate on the target test set.
-   - Example: (BGL) Training set → HDFS Testing set. (Use Fraction)
-   - Example: (BGL + HDFS) Training sets → Thunderbird Testing set. (Use Fraction)
-   - Example: (BGL + HDFS + Spirit) Training sets → Thunderbird Testing set. (Use Fraction)
+   $$
+   s(x) = \alpha\,\mathcal{L}_{\mathrm{MLM}}(x) + \beta\,d_{\mathrm{nearest\ prototype}}(x)
+   $$
 
-The FSADLS framework consists of three main stages:
+3. **Post-hoc calibration.** Estimate a base threshold using normal validation data; optionally refine the scoring weights and threshold on a small labeled validation subset. A sequence is predicted anomalous when its score exceeds the selected threshold.
 
-1. **Semi-supervised SLM training and few-shot adaptation**  
-   The model learns normal log behavior from normal training sequences and, in cross-domain settings, adapts to the target domain using a limited amount of normal target data.
+Calibration changes the scoring rule, **not** the SLM parameters.
 
-2. **Prediction and anomaly scoring**  
-   Each log sequence is scored using a combination of MLM loss and nearest-prototype distance.
-
-3. **Supervised post-hoc calibration**  
-   A limited labeled validation subset is used to refine the score weights and decision threshold before final evaluation on the held-out test set.
-
-## Main Features
-
-- Normal-only semi-supervised SLM training.
-- Fine-tuning of a masked language model for contextual log representation learning.
-- Multi-prototype normality modeling.
-- Hybrid anomaly scoring based on MLM loss and nearest-prototype distance.
-- Percentile-based base threshold estimation from normal validation data.
-- Supervised post-hoc calibration of score weights and decision thresholds using a limited labeled validation subset.
-- Support for both in-domain detection and few-shot cross-domain adaptation.
-## Method Summary
-
-FSADLS learns normal log behavior from normal training sequences. During prediction, each test sequence receives an anomaly score based on:
-
-1. **MLM loss**: measures token-level irregularity in the log sequence.
-2. **Nearest-prototype distance**: measures representation-level deviation from learned normal behavior.
-
-The anomaly score is computed as:
-
-$`\mathrm{score} = \alpha \cdot \mathcal{L}_{\mathrm{MLM}} + \beta \cdot d_{\mathrm{center}}`$
-
-A sequence is classified as anomalous if its score is higher than the calibrated threshold.
-
-## Project Structure
+## Repository Structure
 
 ```text
+<<<<<<< HEAD
 LWADLS/
 ├── datasets/                         # Log datasets and train/validation/test splits
 ├── drain_parser/                     # Drain parser and related configuration
+=======
+FSADLS/
+├── datasets/                         # Raw logs and prepared dataset splits
+├── drain_parser/                     # Drain parsing implementation
+>>>>>>> 6eaf3cc (Update ERADLS project)
 ├── configs/
 │   ├── fsadls_unified_config.yml
 │   └── fsadls_normal_anomaly_adapt_config.yml
 ├── src/
 │   ├── __init__.py
-│   ├── config.py                     # Configuration management
-│   ├── data.py                       # Dataset loading and preprocessing
+│   ├── config.py                     # Configuration loading
+│   ├── data.py                       # Data preparation
 │   ├── model.py                      # SLM architecture
-│   ├── train.py                      # Training and few-shot adaptation
+│   ├── train.py                      # Training and adaptation
 │   ├── losses.py                     # Training objectives
-│   ├── scoring.py                    # Anomaly scoring and post-hoc calibration
-│   ├── run.py                        # Main FSADLS pipeline
-│   └── utils.py                      # Utility functions
-├── main.py                           # Main entry point
-├── requirements.txt                  # Required Python packages
-├── README.md                         # Documentation
+│   ├── scoring.py                    # Anomaly scoring and calibration
+│   ├── run.py                        # Experiment pipeline
+│   └── utils.py                      # Utilities
+├── main.py                           # Entry point
+├── requirements.txt                  # Python dependencies
+├── README.md
 └── .gitignore
 ```
 
+## Datasets
 
-## 📊 Datasets
-We used two open-source log datasets (more will be added in the future):
+The experiments use four publicly available system-log datasets.
 
-| Software System     | Description                        | Data Size| Link                                         |
-|--------------------|------------------------------------|-----------|----------------------------------------|
-| HDFS               | Hadoop Distributed File System log | 1.47 GB   | [LogHub](https://github.com/logpai/loghub)   |
-| BGL                | Blue Gene/L supercomputer log      | 708.76 MB | [LogHub](https://github.com/logpai/loghub)   |
-| Thunderbird (1G)   | Thunderbird supercomputer log      | 1 GB      | [LogHub](https://github.com/logpai/loghub)   |
-| Spirit (SP_150MB)  | Supercomputing system log          | 150 MB    | [Figshare](https://figshare.com/s/6d3c6a83f4828d17be79?file=27775929) |
+| Dataset | Description | Size | Source |
+|---|---|---:|---|
+| HDFS | Hadoop Distributed File System | 1.47 GB | [LogHub](https://github.com/logpai/loghub) |
+| BGL | Blue Gene/L supercomputer | 708.76 MB | [LogHub](https://github.com/logpai/loghub) |
+| Thunderbird (`TH_1G`) | Thunderbird supercomputer | 1 GB | [LogHub](https://github.com/logpai/loghub) |
+| Spirit (`SP_150MB`) | Supercomputing system | 150 MB | [Figshare](https://figshare.com/s/6d3c6a83f4828d17be79?file=27775929) |
 
+### Dataset Statistics
 
+| Dataset | Log messages | Anomaly ratio (%) | Reported blocks/windows | Normal sequences | Anomalous sequences |
+|---|---:|---:|---:|---:|---:|
+| Spirit_a (S) | 1,225,059 | 2.6 | 7,590 | 6,266 | 1,324 |
+| BGL (B) | 4,747,963 | 7.39 | 84,926 | 49,247 | 36,251 |
+| TH_a (T) | 6,013,029 | 5.04 | 52,333 | 44,732 | 7,601 |
+| HDFS (H) | 11,175,629 | 2.5 | 575,071 | 558,223 | 16,838 |
 
+*The anomaly ratio refers to reported log-level statistics, while the final two columns report sequence-level labels. Statistics are reproduced from the project documentation and should be checked against the generated splits.*
 
-## Dataset Statistics
+## Experimental Settings
 
-| Dataset | Size | Logs | Anomaly Ratio (%) | Blocks | Normal Sequences | Anomalous Sequences |
-|---|---:|---:|---:|---:|---:|---:|
-| Spirit_a (S) | 150 MB | 1,225,059 | 2.6 | 7,590 | 6,266 | 1,324 |
-| BGL (B) | 708.7 MB | 4,747,963 | 7.39 | 84,926 | 49,247 | 36,251 |
-| TH_a (T) | 1 GB | 6,013,029 | 5.04 | 52,333 | 44,732 | 7,601 |
-| HDFS (H) | 1.47 GB | 11,175,629 | 2.5 | 575,071 | 558,223 | 16,838 |
-
-
-## Evaluation Scenarios
-
-B, H, T, and S denote **BGL**, **HDFS**, **TH_a**, and **SP_a**, respectively.  
-1S-CD, 2S-CD, and 3S-CD denote cross-domain transfer from one, two, and three source domains.
+FSADLS evaluates **in-domain** detection and **cross-domain** adaptation. The cross-domain settings are grouped by the number of source datasets: one (1S-CD), two (2S-CD), or three (3S-CD).
 
 | Setting | Scenario | Source → Target |
 |---|---|---|
 | In-domain | B → B | BGL → BGL |
 | In-domain | H → H | HDFS → HDFS |
-| In-domain | T → T | TH_a → TH_a |
-| In-domain | S → S | SP_a → SP_a |
+| In-domain | T → T | Thunderbird → Thunderbird |
+| In-domain | S → S | Spirit → Spirit |
 | 1S-CD | 1S₁ | B → H |
 | 1S-CD | 1S₂ | B → T |
 | 1S-CD | 1S₃ | T → S |
@@ -120,15 +93,23 @@ B, H, T, and S denote **BGL**, **HDFS**, **TH_a**, and **SP_a**, respectively.
 | 3S-CD | 3S₁ | (B + H + T) → S |
 | 3S-CD | 3S₂ | (B + H + S) → T |
 | 3S-CD | 3S₃ | (H + T + S) → B |
----
 
-## ⚙️ Environment
-All libraries are specified with their versions in the requirements file (e.g., Main path/requirements.txt).
+In cross-domain experiments, the target-domain adaptation mode can be:
+
+- **NOFS:** Normal-only few-shot adaptation using a specified fraction of target training sequences.
+- **MLFS:** Mixed-label few-shot adaptation, with limited normal and anomalous target training sequences. Their binary labels are not used as discriminative targets during SLM adaptation; labeled validation data may be used for calibration.
+
+## Installation and Data Preparation
+
+### 1. Install Dependencies
+
+From the repository root:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+<<<<<<< HEAD
 ---
 ## 🛠️ Preparation - Parsing step:
 Steps to run FSADLS:
@@ -143,20 +124,52 @@ Steps to run FSADLS:
 8. To start the parsing process, run (drain_parser/demo.py). 
 9. The parsing output will be generated and saved in the datasets' directory.
 10. The output of Drain is CSV file. 
+=======
+### 2. Parse Raw Logs
 
----
-## 🛠️ Preparation - Data Splitting  step:
+Create a dataset folder, such as `datasets/BGL/`, and place its raw `.log` file inside. The project uses the [Drain parser](https://github.com/logpai/logparser/tree/main/logparser/Drain).
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
+1. Select the dataset in `drain_parser/demo.py` by enabling its corresponding configuration.
+2. Install parser-specific requirements if needed: `pip install -r drain_parser/requirements.txt`.
+3. Run:
+
+<<<<<<< HEAD
 1. After the parsing, we run load_datalog.py
 2. In main.py: uncomment Section A and run the file: python main.py. The results will be  60%, 10%, 30% splits as PKL files.
 3. In main.py: comment the Section A and run the file: python main.py. This is start point of the pipeline.
+=======
+   ```bash
+   python drain_parser/demo.py
+   ```
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
+The parser writes structured CSV output to the dataset directory.
 
-## Data Format
+### 3. Create Training, Validation, and Test Splits
 
-The input data should be provided as preprocessed `.pkl` or `.csv` split files.
+The preprocessing pipeline uses `load_datalog.py` and **Section A** of `main.py`:
 
+<<<<<<< HEAD
 The required columns are configured in the YAML file root/configs/ filename.yml:
+=======
+1. Enable Section A in `main.py` and execute `python main.py` to prepare the data.
+2. The resulting split is **60% training, 10% validation, and 30% testing**, saved as pickle files.
+3. Disable Section A before running model experiments.
+
+Example for BGL (round 1):
+
+```text
+datasets/BGL/1_BGL_Splitted_Datasets/
+├── train_df.pkl
+├── val_df.pkl
+└── test_df.pkl
+```
+
+### Input Data Format
+
+Column names are specified in YAML. The supplied configuration example is:
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
 ```yaml
 columns:
@@ -167,8 +180,9 @@ columns:
   dataset: "DatasetName"
 ```
 
-Log events are grouped by `Node_block_id` to form log sequences. Event templates are sorted by timestamp, concatenated using `[SEP]`, and then tokenized before being passed to the SLM.
+Log events are grouped into sequences using `Node_block_id`, ordered by timestamp, joined using `[SEP]`, and tokenized for the SLM. The precise grouping procedure depends on the preprocessing configuration.
 
+<<<<<<< HEAD
 Example split files:
 First run with Round =1 
 ```text
@@ -192,40 +206,32 @@ FSADLS supports three main experimental settings:
 ### Install Dependencies and run the experiments 
 
 pip install -r requirements.txt
+=======
+## Running Experiments
+
+After preparing the datasets, choose the experiment mode and configuration, then run the entry point:
+
+```bash
+python main.py
+```
+
+The original documentation also describes `--config` as a command-line option; use it if supported by your version of `main.py`. Verify the configuration filename against the actual files in `configs/` because the original README uses both `fsadls_...` and `adalogslm_...` names.
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
 ### In-Domain Detection
-main.py # Open the main.py and uncomment import the run.py or run_nom_anom_train_frac.py
-src/run.py
-configs/adalogslm_unified_config.yml
 
-#Configuration: The main configuration file is:
-configs/adalogslm_unified_config.yml
+Set the following experiment mode in the relevant YAML configuration:
 
-To run in-domain detection:
-yaml
+```yaml
 experiment:
   mode: "in_domain"
+```
 
-To run few-shot target adaptation:
-yaml
-experiment:
-  mode: "fewshot_target_adaptation"
+### Cross-Domain Adaptation: NOFS
 
+Normal-only target adaptation, using 20% of target normal training sequences in the documented example:
 
-Example:
-yaml
-experiment:
-  mode: "fewshot_target_adaptation"
-  stage: "train_predict"
-
-## Running the Code
-Run with the default configuration:
-python main.py
-
-### Cross Domain Detection: NOFS
-
-python main.py --config configs/adalogslm_unified_config.yml (Update the imports in the main.py file)
-
+```yaml
 experiment:
   mode: "fewshot_target_adaptation"
   stage: "train_predict"
@@ -234,11 +240,13 @@ datasets:
   fewshot_target_adaptation:
     target_adapt_normal_only: true
     target_normal_ratio: 0.20
+```
 
-### Cross Domain Detection: MLFS
+### Cross-Domain Adaptation: MLFS
 
-python main.py --config configs/adalogslm_unified_config_anom_norma_fracti_train.yml
+The documented mixed-label adaptation example uses 20% of target normal and 20% of target anomalous training sequences:
 
+```yaml
 experiment:
   mode: "fewshot_target_adaptation"
   stage: "train_predict"
@@ -248,18 +256,20 @@ datasets:
     target_adapt_normal_only: false
     target_adapt_normal_fraction: 0.20
     target_adapt_anomaly_fraction: 0.20
+```
 
+**Entry-point note:** The supplied instructions mention selecting either `src/run.py` or `run_nom_anom_train_frac.py` through imports in `main.py`. Confirm which runner and configuration are paired with each adaptation mode in the current code before execution.
 
 ## Training and Evaluation Protocol
 
-- FSADLS uses semi-supervised normality learning, with the base model trained on normal sequences only.
-- In the NOFS setting, few-shot target adaptation uses only normal target-training sequences; no target anomalies are used.
-- In the MLFS setting, limited normal and anomalous target-training sequences can be exposed during adaptation, but their binary labels are not used as discriminative training targets.
-- Normal validation sequences are used to construct the normal prototype(s) and estimate the initial anomaly threshold.
-- A limited labeled validation subset (Normal+Anomaly) is used for supervised post-hoc calibration of the anomaly-score weights and decision threshold.
-- The held-out test set is used only for final evaluation and is not involved in training, adaptation, or calibration.
-- Post-hoc calibration modifies only the scoring weights and decision threshold; it does not retrain or update the SLM.
+- The base SLM is trained on normal training sequences.
+- NOFS adaptation uses normal target training sequences only.
+- MLFS adaptation can expose limited normal and anomalous target training sequences, without using binary anomaly labels as discriminative SLM training targets.
+- Normal validation sequences support normality-prototype construction and initial threshold estimation.
+- A limited labeled validation subset can calibrate the anomaly-score weights and decision threshold.
+- The held-out test set is reserved for final evaluation and is not used for training, adaptation, or calibration.
 
+<<<<<<< HEAD
 ## Baselines - Re-reproduced
 
 These approaches should read the data from our data path : For example : FSADLS/datasets/BGL. Inside BGL, you can see :
@@ -300,8 +310,22 @@ python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
 python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/deeplog.yml
+=======
+## Baseline Implementations
 
+| Baseline | Implementation |
+|---|---|
+| DeepLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| LogAnomaly | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| LogRobust | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| NeuralLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
+| PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
+| LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
+## Contact
+
+<<<<<<< HEAD
 ##### LogAnomaly : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
 python main_run.py --config_file config/loganomaly_cross_20_normal_anomaly.yml
@@ -434,4 +458,11 @@ We are happy to answer your questions:
 |--------------------|-------------------------------------------|
 | Nayef Roqaya       | roqaya@staff.uni-marburg.de               |
 | Thorsten Papenbrock| papenbrock@informatik.uni-marburg.de      |
+=======
+For questions about the implementation or experimental protocol:
+>>>>>>> 6eaf3cc (Update ERADLS project)
 
+| Name | Email |
+|---|---|
+| Nayef Roqaya | [roqaya@staff.uni-marburg.de](mailto:roqaya@staff.uni-marburg.de) |
+| Thorsten Papenbrock | [papenbrock@informatik.uni-marburg.de](mailto:papenbrock@informatik.uni-marburg.de) |
