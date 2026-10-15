@@ -2,7 +2,7 @@
 # FSADLS: Adaptive Anomaly Detection via Few-Shot Learning and Calibration
 
 
-**FSADLS** is a lightweight, **Nsemi-supervised**N framework for system-log anomaly detection using a small language model (SLM). It learns representations of normal log behavior through masked language modeling and multiple normality prototypes. At inference time, it combines masked language modeling (MLM) loss and distance to the nearest normal prototype to identify anomalous sequences. The framework supports in-domain detection and few-shot cross-domain adaptation, with supervised post-hoc calibration of score weights and the decision threshold.
+**FSADLS** is a lightweight, **semi-supervised**N framework for system-log anomaly detection using a small language model (SLM). It learns representations of normal log behavior through masked language modeling and multiple normality prototypes. At inference time, it combines masked language modeling (MLM) loss and distance to the nearest normal prototype to identify anomalous sequences. The framework supports in-domain detection and few-shot cross-domain adaptation, with supervised post-hoc calibration of score weights and the decision threshold.
 
 ## Method Overview
 
