@@ -1,8 +1,8 @@
-<<<<<<< HEAD
+
 ### FSADLS
 =======
 # FSADLS: Few-Shot and Semi-Supervised Log Anomaly Detection
->>>>>>> 6eaf3cc (Update ERADLS project)
+
 
 **FSADLS** is a lightweight, semi-supervised framework for system-log anomaly detection using a small language model (SLM). It learns representations of normal log behavior through masked language modeling and multiple normality prototypes. At inference time, it combines masked language modeling (MLM) loss and distance to the nearest normal prototype to identify anomalous sequences. The framework supports in-domain detection and few-shot cross-domain adaptation, with optional supervised post-hoc calibration of score weights and the decision threshold.
 
@@ -24,7 +24,6 @@ Calibration changes the scoring rule, **not** the SLM parameters.
 ## Repository Structure
 
 ```text
-<<<<<<< HEAD
 LWADLS/
 ├── datasets/                         # Log datasets and train/validation/test splits
 ├── drain_parser/                     # Drain parser and related configuration
@@ -32,7 +31,6 @@ LWADLS/
 FSADLS/
 ├── datasets/                         # Raw logs and prepared dataset splits
 ├── drain_parser/                     # Drain parsing implementation
->>>>>>> 6eaf3cc (Update ERADLS project)
 ├── configs/
 │   ├── fsadls_unified_config.yml
 │   └── fsadls_normal_anomaly_adapt_config.yml
@@ -109,7 +107,6 @@ From the repository root:
 pip install -r requirements.txt
 ```
 
-<<<<<<< HEAD
 ---
 ## 🛠️ Preparation - Parsing step:
 Steps to run FSADLS:
@@ -128,13 +125,12 @@ Steps to run FSADLS:
 ### 2. Parse Raw Logs
 
 Create a dataset folder, such as `datasets/BGL/`, and place its raw `.log` file inside. The project uses the [Drain parser](https://github.com/logpai/logparser/tree/main/logparser/Drain).
->>>>>>> 6eaf3cc (Update ERADLS project)
 
 1. Select the dataset in `drain_parser/demo.py` by enabling its corresponding configuration.
 2. Install parser-specific requirements if needed: `pip install -r drain_parser/requirements.txt`.
 3. Run:
 
-<<<<<<< HEAD
+<<<<<<< :
 1. After the parsing, we run load_datalog.py
 2. In main.py: uncomment Section A and run the file: python main.py. The results will be  60%, 10%, 30% splits as PKL files.
 3. In main.py: comment the Section A and run the file: python main.py. This is start point of the pipeline.
@@ -169,7 +165,6 @@ datasets/BGL/1_BGL_Splitted_Datasets/
 ### Input Data Format
 
 Column names are specified in YAML. The supplied configuration example is:
->>>>>>> 6eaf3cc (Update ERADLS project)
 
 ```yaml
 columns:
@@ -216,7 +211,6 @@ python main.py
 ```
 
 The original documentation also describes `--config` as a command-line option; use it if supported by your version of `main.py`. Verify the configuration filename against the actual files in `configs/` because the original README uses both `fsadls_...` and `adalogslm_...` names.
->>>>>>> 6eaf3cc (Update ERADLS project)
 
 ### In-Domain Detection
 
@@ -321,7 +315,6 @@ python main_run.py --config_file config/deeplog.yml
 | NeuralLog | [Exper_LOAGAD](https://github.com/nayefroqaya/Exper_LOAGAD/tree/main-before-2-months) |
 | PLELog | [Exper_PLELOG](https://github.com/nayefroqaya/Exper_PLELOG) |
 | LogFormer | [Exper_LogForm](https://github.com/nayefroqaya/Exper_LogForm) |
->>>>>>> 6eaf3cc (Update ERADLS project)
 
 ## Contact
 
@@ -460,8 +453,6 @@ We are happy to answer your questions:
 | Thorsten Papenbrock| papenbrock@informatik.uni-marburg.de      |
 =======
 For questions about the implementation or experimental protocol:
->>>>>>> 6eaf3cc (Update ERADLS project)
-
 | Name | Email |
 |---|---|
 | Nayef Roqaya | [roqaya@staff.uni-marburg.de](mailto:roqaya@staff.uni-marburg.de) |
