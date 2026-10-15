@@ -329,7 +329,7 @@ python main_run.py --config_file config/neurallog.yml
 
   ../../root forlder/datasets is in the approaches/file.py
 
-  ##### Cross domain (20% Normal only for training) - PLELog
+##### Cross domain (20% Normal only for training) - PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
 - Set the path to data folder. 
 - go to approaches folder.
