@@ -295,7 +295,6 @@ python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
 python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/deeplog.yml
-=======
 
 ##### LogAnomaly : 
  - Cross domain (20% Normal data + 20% Anomaly data ) : 
