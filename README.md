@@ -253,7 +253,7 @@ datasets:
 - A limited labeled validation subset (normal and anoamly) can calibrate the anomaly-score weights and decision threshold.
 - The held-out test set is reserved for final evaluation and is not used for training, adaptation, or calibration.
 
-## Baselines - Re-reproduced
+## Baselines - Re-reproduced (Please run the baselines ffrom the command below for each method- not from the command in the baseline repo)
 
 | Baseline | Implementation |
 |---|---|
