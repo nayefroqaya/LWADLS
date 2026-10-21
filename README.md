@@ -289,34 +289,34 @@ We have three run for each method:
 From yml file, we can decide source_datasets and Target dataset.
 
 ##### **DeepLog** : 
- - Cross domain (20% Normal data + 20% Anomaly data ) : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) - MLFS:  
 python main_run.py --config_file config/deeplog_cross_20_normal_anomaly.yml
- - Cross domain (20% Normal data ):
+ - Cross domain (20% Normal data ): NOFS
 python main_run.py --config_file config/deeplog_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/deeplog.yml
 
 ##### LogAnomaly : 
- - Cross domain (20% Normal data + 20% Anomaly data ) : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) - MLFS : 
 python main_run.py --config_file config/loganomaly_cross_20_normal_anomaly.yml
- - Cross domain (20% Normal data ):
+ - Cross domain (20% Normal data ): NOFS
 python main_run.py --config_file config/loganomaly_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/loganomaly.yml
 
 ##### Logrobust : 
- - Cross domain (20% Normal data + 20% Anomaly data ) : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) - MLFS: 
 python main_run.py --config_file config/logrobust_cross_20_normal_anomaly.yml
- - Cross domain (20% Normal data ):
+ - Cross domain (20% Normal data ): NOFS
 python main_run.py --config_file config/logrobust_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/Logrobust.yml
 
 
 ##### NeuralLog : 
- - Cross domain (20% Normal data + 20% Anomaly data ) : 
+ - Cross domain (20% Normal data + 20% Anomaly data ) - MLFS: 
 python main_run.py --config_file config/neurallog_cross_20_normal_anomaly.yml
- - Cross domain (20% Normal data ):
+ - Cross domain (20% Normal data ): NOFS
 python main_run.py --config_file config/neurallog_cross_20_normal_only.yml
  - In domain : 
 python main_run.py --config_file config/neurallog.yml
@@ -328,7 +328,7 @@ python main_run.py --config_file config/neurallog.yml
 
   ../../root forlder/datasets is in the approaches/file.py
 
-##### Cross domain (20% Normal only for training) - PLELog
+##### Cross domain (20% Normal only for training) NOFS - PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
 - Set the path to data folder. 
 - go to approaches folder.
@@ -340,7 +340,7 @@ python main_run.py --config_file config/neurallog.yml
 - run : ### python PLELog_cross_20_only_normal.py
 
 
-##### Cross domain (20% Normal + 20% Anomaly  for training)- PLELog
+##### Cross domain (20% Normal + 20% Anomaly  for training)- MLFS- PLELog
 - With assumption you run the log parser in proposed paper code, our PKL files are ready. 
 - Set the path to data folder. default='../../root folder/datasets'
 - go to approaches folder.
@@ -372,7 +372,7 @@ In Exper_LogForm/preprocess/file.yml you can find all path fo all datasets. For 
  
 
 ##### Cross-dataset supervised LogFormer: i.e. BGL -> HDFS. LogFormer
-##### Normakl + anomaly in train - LogFormer
+##### Normakl + anomaly in train -MLFS- LogFormer
 
 In yml file : setting: cross_dataset
 
@@ -386,7 +386,7 @@ In yml file : setting: cross_dataset
 - python Frackition_normalandanomal_tune_transformer_pkl_ready_last.py \
   --config preprocess/config_cross_dataset_last.yml
 
-##### Only Normal : - LogFormer
+##### Only Normal : NOFS - LogFormer
 In yml file : setting: cross_dataset
 
 - python preprocess/preprocess_only_normal_dataset_selector_from_config_no_overlap_last.py \
